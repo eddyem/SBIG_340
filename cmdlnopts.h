@@ -1,4 +1,4 @@
-/*
+/*                                                                                                  geany_encoding=koi8-r
  * cmdlnopts.h - comand line options for parceargs
  *
  * Copyright 2013 Edward V. Emelianoff <eddy@sao.ru>
@@ -24,6 +24,7 @@
 #define __CMDLNOPTS_H__
 
 #include "parseargs.h"
+#include "term.h"
 
 /*
  * here are some typedef's for global data
@@ -33,6 +34,9 @@ typedef struct{
     int terminal;           // run as terminal (send/receive)
     char *device;           // serial device name
     int rest_pars_num;      // number of rest parameters
+    heater_cmd heater;      // turn heater on/off/leave unchanged
+    int splist;             // list speeds available
+    int newspeed;           // change speed
     char** rest_pars;       // the rest parameters: array of char*
 } glob_pars;
 

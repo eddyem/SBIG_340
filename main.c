@@ -1,4 +1,4 @@
-/*
+/*                                                                                                  geany_encoding=koi8-r
  * main.c
  *
  * Copyright 2017 Edward V. Emelianov <eddy@sao.ru, edward.emelianoff@gmail.com>
@@ -19,6 +19,7 @@
  * MA 02110-1301, USA.
  */
 #include "usefull_macros.h"
+#include <signal.h>
 #include "term.h"
 #include "cmdlnopts.h"
 
@@ -30,7 +31,13 @@ void signals(int signo){
 
 int main(int argc, char **argv){
     initial_setup();
+    for(int i = 0; i < 255; ++i) signal(i, signals);
+    signal(SIGTSTP, SIG_IGN); // ctrl+Z - ignore
+    signal(SIGQUIT, SIG_IGN); // ctrl+\ - ignore
+
     glob_pars *G = parse_args(argc, argv);
+    printf("sp: %d\n", G->splist);
+    if(G->splist) list_speeds();
     if(G->daemon && G->terminal){
         WARNX(_("Options --daemon and --terminal can't be together!"));
         return 1;
@@ -39,6 +46,12 @@ int main(int argc, char **argv){
         WARNX(_("Check power and connection: device not answer!"));
         return 1;
     }
+    char *fw = get_firmvare_version();
+    if(fw) printf(_("Firmware version: %s\n"), fw);
+    if(G->newspeed && term_setspeed(G->newspeed))
+        ERRX(_("Can't change speed to %d"), G->newspeed);
+    if(G->heater != HEATER_LEAVE)
+        heater(G->heater); // turn on/off heater
     if(G->daemon || G->terminal){
         red(_("All other commandline options rejected!\n"));
         if(G->terminal) run_terminal(); // non-echo terminal mode

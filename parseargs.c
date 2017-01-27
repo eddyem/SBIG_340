@@ -1,4 +1,4 @@
-/*
+/*                                                                                                  geany_encoding=koi8-r
  * parseargs.c - parsing command line arguments & print help
  *
  * Copyright 2013 Edward V. Emelianoff <eddy@sao.ru>

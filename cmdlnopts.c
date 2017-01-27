@@ -1,4 +1,4 @@
-/*
+/*                                                                                                  geany_encoding=koi8-r
  * cmdlnopts.c - the only function that parse cmdln args and returns glob parameters
  *
  * Copyright 2013 Edward V. Emelianoff <eddy@sao.ru>
@@ -40,8 +40,11 @@ int rewrite_ifexists = 0, // rewrite existing files == 0 or 1
 glob_pars const Gdefault = {
     .daemon = 0,
     .terminal = 0,
+    .heater = HEATER_LEAVE,
     .device = DEFAULT_COMDEV,
     .rest_pars_num = 0,
+    .splist = 0,
+    .newspeed = 0,
     .rest_pars = NULL
 };
 
@@ -55,6 +58,10 @@ myoption cmdlnopts[] = {
     {"daemon",  NO_ARGS,    NULL,   'd',    arg_int,    APTR(&G.daemon),    _("run as daemon")},
     {"terminal",NO_ARGS,    NULL,   't',    arg_int,    APTR(&G.terminal),  _("run as terminal")},
     {"device",  NEED_ARG,   NULL,   'i',    arg_string, APTR(&G.device),    _("serial device name (default: " DEFAULT_COMDEV ")")},
+    {"heater-on",NO_ARGS,   APTR(&G.heater),HEATER_ON,  arg_none, NULL,     _("turn heater on")},
+    {"heater-off",NO_ARGS,  APTR(&G.heater),HEATER_OFF, arg_none, NULL,     _("turn heater off")},
+    {"spd-list",NO_ARGS,    NULL,   'l',    arg_int,    APTR(&G.splist),    _("list speeds available")},
+    {"spd-set", NEED_ARG,   NULL,   's',    arg_int,    APTR(&G.newspeed),  _("set terminal speed")},
     // simple integer parameter with obligatory arg:
    end_option
 };

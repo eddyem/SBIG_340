@@ -1,4 +1,4 @@
-/*
+/*                                                                                                  geany_encoding=koi8-r
  * parseargs.h - headers for parsing command line arguments
  *
  * Copyright 2013 Edward V. Emelianoff <eddy@sao.ru>

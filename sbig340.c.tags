@@ -1743,6 +1743,7 @@ __END_NAMESPACE_STDÌ65536Ö0
 __EXCEPTIONSÌ65536Ö0
 __FDS_BITSÌ131072Í(set)Ö0
 __FD_CLRÌ131072Í(d,set)Ö0
+__FD_ELTÌ65536Ö0
 __FD_ELTÌ131072Í(d)Ö0
 __FD_ISSETÌ131072Í(d,set)Ö0
 __FD_MASKÌ131072Í(d)Ö0
@@ -1917,6 +1918,7 @@ __MATHDECL_1Ì131072Í(type,function,suffix,args)Ö0
 __MATHDECL_VECÌ131072Í(type,function,suffix,args)Ö0
 __MATH_DECLARE_LDOUBLEÌ65536Ö0
 __MATH_DECLARING_DOUBLEÌ65536Ö0
+__MATH_INLINEÌ65536Ö0
 __MATH_PRECNAMEÌ65536Ö0
 __MATH_PRECNAMEÌ131072Í(name,r)Ö0
 __MAX_BAUDÌ65536Ö0
@@ -1924,12 +1926,12 @@ __MMX__Ì65536Ö0
 __MODE_T_TYPEÌ65536Ö0
 __NFDBITSÌ65536Ö0
 __NLINK_T_TYPEÌ65536Ö0
-__NO_INLINE__Ì65536Ö0
 __NTHÌ131072Í(fct)Ö0
 __OFF64_T_TYPEÌ65536Ö0
 __OFF_T_MATCHES_OFF64_TÌ65536Ö0
 __OFF_T_TYPEÌ65536Ö0
 __OPEN_NEEDS_MODEÌ131072Í(oflag)Ö0
+__OPTIMIZE__Ì65536Ö0
 __ORDER_BIG_ENDIAN__Ì65536Ö0
 __ORDER_LITTLE_ENDIAN__Ì65536Ö0
 __ORDER_PDP_ENDIAN__Ì65536Ö0
@@ -2019,6 +2021,8 @@ __STDC_IEC_559__Ì65536Ö0
 __STDC_ISO_10646__Ì65536Ö0
 __STDC_NO_THREADS__Ì65536Ö0
 __STDC__Ì65536Ö0
+__STDIO_INLINEÌ65536Ö0
+__STDLIB_MB_LEN_MAXÌ65536Ö0
 __STD_TYPEÌ65536Ö0
 __STRINGÌ131072Í(x)Ö0
 __SUSECONDS_T_TYPEÌ65536Ö0
@@ -2093,6 +2097,7 @@ __USECONDS_T_TYPEÌ65536Ö0
 __USEFULL_MACROS_H__Ì65536Ö0
 __USER_LABEL_PREFIX__Ì65536Ö0
 __USE_ATFILEÌ65536Ö0
+__USE_EXTERN_INLINESÌ65536Ö0
 __USE_FILE_OFFSET64Ì65536Ö0
 __USE_FORTIFY_LEVELÌ65536Ö0
 __USE_GNUÌ65536Ö0
@@ -2217,6 +2222,7 @@ __isasciiÌ131072Í(c)Ö0
 __isascii_lÌ131072Í(c,l)Ö0
 __isblank_lÌ131072Í(c,l)Ö0
 __iscntrl_lÌ131072Í(c,l)Ö0
+__isctype_fÌ131072Í(type)Ö0
 __isctype_lÌ131072Í(c,type,locale)Ö0
 __isdigit_lÌ131072Í(c,l)Ö0
 __isgraph_lÌ131072Í(c,l)Ö0
@@ -2235,6 +2241,8 @@ __linux__Ì65536Ö0
 __lldiv_t_definedÌ65536Ö0
 __long_double_tÌ65536Ö0
 __malloc_and_calloc_definedÌ65536Ö0
+__mempcpyÌ65536Ö0
+__mempcpyÌ131072Í(dest,src,n)Ö0
 __mode_t_definedÌ65536Ö0
 __need_EmathÌ65536Ö0
 __need_FILEÌ65536Ö0
@@ -2361,6 +2369,7 @@ error_tÌ4096Ö0Ïint
 falseÌ65536Ö0
 flagÌ64Îanon_struct_2Ö0Ïint *
 fpclassifyÌ131072Í(x)Ö0
+fread_unlockedÌ65536Ö0
 g_pr_Ì16Í(const char *fmt, ...)Ö0Ïint
 get_aptrÌ16Í(void *paptr, argtype type)Ö0Ïvoid *
 get_curspeedÌ16Í()Ö0Ïint
@@ -2431,6 +2440,8 @@ mainÌ16Í(int argc, char **argv)Ö0Ïint
 majorÌ131072Í(dev)Ö0
 makedevÌ131072Í(maj,min)Ö0
 math_errhandlingÌ65536Ö0
+mempcpyÌ65536Ö0
+mempcpyÌ131072Í(dest,src,n)Ö0
 minorÌ131072Í(dev)Ö0
 mmapbufÌ4096Ö0Ïanon_struct_4
 my_allocÌ16Í(size_t N, size_t S)Ö0Ïvoid *

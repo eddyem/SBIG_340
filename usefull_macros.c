@@ -1,4 +1,4 @@
-/*
+/*                                                                                                  geany_encoding=koi8-r
  * usefull_macros.h - a set of usefull functions: memory, color etc
  *
  * Copyright 2013 Edward V. Emelianoff <eddy@sao.ru>
@@ -288,18 +288,24 @@ void restore_tty(){
 #endif
 // init: (speed = B9600 etc)
 void tty_init(char *comdev, tcflag_t speed){
-    DBG("Open port...");
-    if ((comfd = open(comdev,O_RDWR|O_NOCTTY|O_NONBLOCK)) < 0){
-        WARN("Can't use port %s\n",comdev);
-        ioctl(comfd, TCSANOW, &oldtty); // return TTY to previous state
-        close(comfd);
-        signals(0); // quit?
-    }
-    DBG("OK\nGet current settings...");
-    if(ioctl(comfd,TCGETA,&oldtty) < 0){  // Get settings
-        /// "Не могу получить настройки"
-        WARN(_("Can't get settings"));
-        signals(0);
+    if(comfd == -1){ // not opened
+        if(!comdev){
+            WARNX("comdev == NULL");
+            signals(11);
+        }
+        DBG("Open port...");
+        if ((comfd = open(comdev,O_RDWR|O_NOCTTY|O_NONBLOCK)) < 0){
+            WARN("Can't use port %s\n",comdev);
+            ioctl(comfd, TCSANOW, &oldtty); // return TTY to previous state
+            close(comfd);
+            signals(2); // quit?
+        }
+        DBG("OK\nGet current settings...");
+        if(ioctl(comfd,TCGETA,&oldtty) < 0){  // Get settings
+            /// "Не могу получить настройки"
+            WARN(_("Can't get settings"));
+            signals(2);
+        }
     }
     tty = oldtty;
     tty.c_lflag     = 0; // ~(ICANON | ECHO | ECHOE | ISIG)
@@ -307,7 +313,7 @@ void tty_init(char *comdev, tcflag_t speed){
     tty.c_cflag     = speed|CS8|CREAD|CLOCAL; // 9.6k, 8N1, RW, ignore line ctrl
     tty.c_cc[VMIN]  = 0;  // non-canonical mode
     tty.c_cc[VTIME] = 5;
-    if(ioctl(comfd,TCSETA,&tty) < 0){
+    if(ioctl(comfd, TCSETA, &tty) < 0){
         /// "Не могу установить настройки"
         WARN(_("Can't set settings"));
         signals(0);
@@ -336,7 +342,7 @@ size_t read_tty(uint8_t *buff, size_t length){
     return (size_t)L;
 }
 
-int write_tty(uint8_t *buff, size_t length){
+int write_tty(const uint8_t *buff, size_t length){
     ssize_t L = write(comfd, buff, length);
     if((size_t)L != length){
         /// "Ошибка записи!"

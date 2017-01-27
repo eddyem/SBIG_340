@@ -1,4 +1,4 @@
-/*
+/*                                                                                                  geany_encoding=koi8-r
  * usefull_macros.h - a set of usefull macros: memory, color etc
  *
  * Copyright 2013 Edward V. Emelianoff <eddy@sao.ru>
@@ -133,7 +133,7 @@ int mygetchar();
 void restore_tty();
 void tty_init(char *comdev, tcflag_t speed);
 size_t read_tty(uint8_t *buff, size_t length);
-int write_tty(uint8_t *buff, size_t length);
+int write_tty(const uint8_t *buff, size_t length);
 
 int str2double(double *num, const char *str);
 
