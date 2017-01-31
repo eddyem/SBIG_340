@@ -37,6 +37,15 @@ typedef struct{
     heater_cmd heater;      // turn heater on/off/leave unchanged
     int splist;             // list speeds available
     int newspeed;           // change speed
+    int speed;              // connect @ this speed
+    char *shutter_cmd;      // shutter command: 'o' for open, 'c' for close, 'k' for de-energize
+    char *subframe;         // select subframe (x,y,size)
+    double exptime;         // exsposition time (1s by default)
+    int binning;            // binning (1 by default)
+    int takeimg;            // take image
+    char *imtype;           // image type (light, autodark, dark)
+    char *imstoretype;      // "overwrite" (or "rewrite"), "normal" (or NULL), "enumerate" (or "numerate")
+    char *outpfname;        // output filename for image storing
     char** rest_pars;       // the rest parameters: array of char*
 } glob_pars;
 

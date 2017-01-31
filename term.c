@@ -20,20 +20,8 @@
  */
 #include "usefull_macros.h"
 #include "term.h"
-/*
-#include <termios.h>        // tcsetattr
-#include <unistd.h>         // tcsetattr, close, read, write
-#include <sys/ioctl.h>      // ioctl
-#include <stdio.h>          // printf, getchar, fopen, perror
-#include <stdlib.h>         // exit
-#include <sys/stat.h>       // read
-#include <fcntl.h>          // read
-#include <signal.h>         // signal
-#include <time.h>           // time
-#include <string.h>         // memcpy
-#include <stdint.h>         // int types
-#include <sys/time.h>       // gettimeofday
-*/
+#include <strings.h> // strncasecmp
+
 #define BUFLEN 1024
 
 tcflag_t Bspeeds[] = {
@@ -75,17 +63,17 @@ int get_curspeed(){
  * Send command by serial port, return 0 if all OK
  */
 static uint8_t last_chksum = 0;
-int send_data(uint8_t *buf){
-    if(!*buf) return 1;
+int send_data(uint8_t *buf, int len){
+    if(len < 1) return 1;
     uint8_t chksum = 0, *ptr = buf;
     int l;
-    for(l = 0; *ptr; ++l)
+    for(l = 0; l < len; ++l)
         chksum ^= ~(*ptr++) & 0x7f;
-    DBG("send: %s%c", buf, (char)chksum);
-    if(write_tty(buf, l)) return 1;
-    DBG("cmd done");
+    DBG("send: %s (chksum: 0x%X)", buf, chksum);
+    if(write_tty(buf, len)) return 1;
+    DBG("cmd sent");
     if(write_tty(&chksum, 1)) return 1;
-    DBG("checksum done");
+    DBG("checksum sent");
     last_chksum = chksum;
     return 0;
 }
@@ -93,6 +81,7 @@ int send_cmd(uint8_t cmd){
     uint8_t s[2];
     s[0] = cmd;
     s[1] = ~(cmd) & 0x7f;
+    DBG("Write %c", cmd);
     if(write_tty(s, 2)) return 1;
     last_chksum = s[1];
     return 0;
@@ -102,16 +91,38 @@ int send_cmd(uint8_t cmd){
  * Wait for answer with checksum
  */
 trans_status wait_checksum(){
-    double d0 = dtime();
     uint8_t chr;
+    int r;
+    double d0 = dtime();
     do{
-        if(read_tty(&chr, 1)) break;
+        if((r = read_tty(&chr, 1))) break;
         DBG("wait..");
     }while(dtime() - d0 < WAIT_TMOUT);
     if(dtime() - d0 >= WAIT_TMOUT) return TRANS_TIMEOUT;
     DBG("chksum: got 0x%x, need 0x%x", chr, last_chksum);
-    if(chr != last_chksum) return TRANS_BADCHSUM;
+    if(chr != last_chksum){
+        if(chr == 0x7f) return TRANS_TRYAGAIN;
+        else if(chr == ANS_EXP_IN_PROGRESS) return TRANS_BUSY;
+        else return TRANS_BADCHSUM;
+    }
     return TRANS_SUCCEED;
+}
+
+/**
+ * send command and wait for checksum
+ * @return TRANS_SUCCEED if all OK
+ */
+trans_status send_cmd_cs(uint8_t cmd){
+    if(send_cmd(cmd)) return TRANS_ERROR;
+    return wait_checksum();
+}
+
+/**
+ * Abort image exposition
+ * Used only on exit, so don't check commands status
+ */
+void abort_image(){
+    send_cmd_cs(CMD_ABORT_IMAGE);
 }
 
 /**
@@ -140,7 +151,7 @@ size_t read_string(uint8_t *str, int L){
  * @return transaction status
  */
 trans_status wait4answer(uint8_t **rdata, int *rdlen){
-    *rdlen = 0;
+    if(rdlen) *rdlen = 0;
     static uint8_t buf[128];
     int L = 0;
     trans_status st = wait_checksum();
@@ -149,20 +160,42 @@ trans_status wait4answer(uint8_t **rdata, int *rdlen){
     do{
         if((L = read_tty(buf, sizeof(buf)))) break;
     }while(dtime() - d0 < WAIT_TMOUT);
+    DBG("read %d bytes, first: 0x%x",L, buf[0]);
     if(!L) return TRANS_TIMEOUT;
-    *rdata = buf;
-    *rdlen = L;
+    if(rdata) *rdata = buf;
+    if(rdlen) *rdlen = L;
     return TRANS_SUCCEED;
 }
 
 /**
- * Try to connect to `device` at different speeds
+ * check if given baudrate right
+ * @return its number in `speeds` array or -1 if fault
+ */
+int chkspeed(int speed){
+    int spdidx = 0;
+    for(; spdidx < speedssize; ++spdidx)
+        if(speeds[spdidx] == speed) break;
+    if(spdidx == speedssize){
+        WARNX(_("Wrong speed: %d!"), speed);
+        list_speeds();
+        return -1;
+    }
+    return spdidx;
+}
+
+/**
+ * Try to connect to `device` at given speed (or try all speeds, if speed == 0)
  * @return connection speed if success or 0
  */
-int try_connect(char *device){
+int try_connect(char *device, int speed){
     if(!device) return 0;
+    int spdstart = 0, spdmax = speedssize;
+    if(speed){
+        if((spdstart = chkspeed(speed)) < 0) return 0;
+        spdmax = spdstart + 1;
+    }
     green(_("Connecting to %s... "), device);
-    for(curspd = 0; curspd < speedssize; ++curspd){
+    for(curspd = spdstart; curspd < spdmax; ++curspd){
         tty_init(device, Bspeeds[curspd]);
         DBG("Try speed %d", speeds[curspd]);
         int ctr;
@@ -174,12 +207,23 @@ int try_connect(char *device){
         uint8_t *rd;
         int l;
         // OK, now check an answer
-        if(TRANS_SUCCEED != wait4answer(&rd, &l) || l != 1 || *rd != ANS_COMM_TEST) continue;
+        trans_status st = wait4answer(&rd, &l);
+        DBG("st: %d", st);
+        if(st == TRANS_BUSY){ // busy - send command 'abort exp'
+            send_cmd(CMD_ABORT_IMAGE);
+            --curspd;
+            continue;
+        }
+        if(st == TRANS_TRYAGAIN){ // there was an error in last communications - try again
+            --curspd;
+            continue;
+        }
+        if(TRANS_SUCCEED != st || l != 1 || *rd != ANS_COMM_TEST) continue;
         DBG("Got it!");
         green(_("Connection established at B%d.\n"), speeds[curspd]);
         return speeds[curspd];
     }
-    green(_("No connection!"));
+    green(_("No connection!\n"));
     return 0;
 }
 
@@ -188,22 +232,16 @@ int try_connect(char *device){
  * @return 0 if all OK
  */
 int term_setspeed(int speed){
-    int spdidx = 0;
     size_t L;
-    for(; spdidx < speedssize; ++spdidx)
-        if(speeds[spdidx] == speed) break;
-    if(spdidx == speedssize){
-        WARNX(_("Wrong speed: %d!"), speed);
-        list_speeds();
-        return 1;
-    }
+    int spdidx = chkspeed(speed);
+    if(spdidx < 0) return 1;
     if(spdidx == curspd){
         printf(_("Already connected at %d\n"), speeds[spdidx]);
         return 0;
     }
     green(_("Try to change speed to %d\n"), speed);
-    uint8_t msg[7] = {CMD_CHANGE_BAUDRATE, spdidx + '0', 0};
-    if(send_data(msg)){
+    uint8_t msg[7] = {CMD_CHANGE_BAUDRATE, spdidx + '0'};
+    if(send_data(msg, 2)){
         WARNX(_("Error during message send"));
         return 1;
     }
@@ -284,10 +322,10 @@ void daemonize(){
 
 void heater(heater_cmd cmd){
     if(cmd == HEATER_LEAVE) return;
-    uint8_t buf[3] = {CMD_HEATER, 0, 0};
+    uint8_t buf[2] = {CMD_HEATER, 0};
     if(cmd == HEATER_ON) buf[1] = 1;
     int i;
-    for(i = 0; i < 10 && send_data(buf); ++i);
+    for(i = 0; i < 10 && send_data(buf, 2); ++i);
     trans_status st = TRANS_TIMEOUT;
     if(i < 10) st = wait_checksum();
     if(i == 10 || st != TRANS_SUCCEED){
@@ -300,10 +338,329 @@ void heater(heater_cmd cmd){
  */
 char *get_firmvare_version(){
     static char buf[256];
-    if(TRANS_SUCCEED != send_cmd(CMD_FIRMWARE_WERSION)) return NULL;
+    if(TRANS_SUCCEED != send_cmd(CMD_FIRMWARE_VERSION)) return NULL;
     if(TRANS_SUCCEED != wait_checksum()) return NULL;
     uint8_t V[2];
     if(2 != read_string(V, 2)) return NULL;
     snprintf(buf, 256, "%c%d.%d", (V[0] &0x80)?'T':'V', V[0]&0x7f, V[1]);
     return buf;
+}
+
+/**
+ * Send command to shutter
+ * @param cmd (i) - command (register-independent): o - open, c - close, k - de-energize
+ * cmd may include 'k' with 'o' or 'c' (means "open/close and de-energize")
+ * @return 1 in case of wrong command
+ */
+int shutter_command(char *cmd){
+    if(!cmd) return 1;
+    int deenerg = 0, openclose = 0, N = 0;
+    while(*cmd){
+        char c = *cmd++;
+        if(N > 2) return 1; // too much commands
+        if(c == 'o' || c == 'O'){
+            ++N; if(openclose) return 1; // already meet 'o' or 'c'
+            openclose = 1; // open
+        }else if(c == 'c' || c == 'C'){
+            ++N; if(openclose) return 1;
+            openclose = -1; // close
+        }else if(c == 'k' || c == 'K'){
+            ++N; deenerg = 1;
+        }
+        else if(c != '\'' && c != '"') return 1; // wrong symbol in command
+    }
+    if(openclose){
+        if(TRANS_SUCCEED != send_cmd_cs(openclose > 0 ? CMD_SHUTTER_OPEN : CMD_SHUTTER_CLOSE))
+            return 1;
+    }
+    if(deenerg){
+       if(TRANS_SUCCEED != send_cmd_cs(CMD_SHUTTER_DEENERGIZE))
+            return 1;
+    }
+    return 0;
+}
+
+/**
+ * Define subframe region
+ * TODO: test this function. It doesnt work
+ * @param parm (i) - parameters in format Xstart,Ystart,size
+ * `parm` can be Xstart,Ystart for default size (127px)
+ * @return structure allocated here (should be free'd outside)
+ */
+imsubframe *define_subframe(char *parm){
+    if(!parm) return NULL;
+    // default parameters
+    uint16_t X = 0, Y = 0;
+    uint8_t sz = 127;
+    char *eptr;
+    long int L = strtol(parm, &eptr, 10);
+    DBG("L=%ld, parm=%s, eptr=%s",L,parm,eptr);
+    if(eptr == parm || !*eptr || *eptr != ','){
+        WARNX(_("Subframe parameter should have format Xstart,Ystart,size or Xstart,Ystart when size=127"));
+        return NULL;
+    }
+    if(L > IMWIDTH - 1 || L < 1){
+        WARNX(_("Xstart should be in range 0..%d"), IMWIDTH - 1 );
+        return NULL;
+    }
+    parm = eptr + 1;
+    X = (uint16_t)L;
+    L = strtol(parm, &eptr, 10);
+    if(eptr == parm){
+        WARNX(_("Wrong Ystart format"));
+        return NULL;
+    }
+    if(L > IMHEIGHT - 1 || L < 1){
+        WARNX(_("Ystart should be in range 0..%d"), IMHEIGHT - 1 );
+        return NULL;
+    }
+    Y = (uint16_t)L;
+    if(*eptr){
+        if(*eptr != ','){
+            WARNX(_("Wrong size format"));
+            return NULL;
+        }
+        parm = eptr + 1;
+        L = strtol(parm, &eptr, 10);
+        if(L > MAX_SUBFRAME_SZ || L < 1){
+            WARNX(_("Subframe size could be in range 1..%d"), MAX_SUBFRAME_SZ);
+            return NULL;
+        }
+        sz = (uint8_t)L;
+    }
+    if(X+sz > IMWIDTH){
+        WARNX(_("Xstart+size should be less or equal %d"), IMWIDTH);
+        return NULL;
+    }
+    if(Y+sz > IMHEIGHT){
+        WARNX(_("Ystart+size should be less or equal %d"), IMHEIGHT);
+        return NULL;
+    }
+    // now all OK, send command
+    uint8_t cmd[6] = {CMD_DEFINE_SUBFRAME, 0};
+    cmd[1] = (X>>8) & 0xff;
+    cmd[2] = X & 0xff;
+    cmd[3] = (Y>>8) & 0xff;
+    cmd[4] = Y & 0xff;
+    cmd[5] = sz;
+    if(send_data(cmd, 6)){
+        WARNX(_("Error sending command"));
+        return NULL;
+    }
+    wait4answer(NULL, NULL);
+    // ALL OK!
+    imsubframe *F = MALLOC(imsubframe, 1);
+    F->Xstart = X, F->Ystart = Y, F->size = sz;
+    return F;
+}
+
+/**
+ * Send command to start exposition
+ * @param binning - binning to expose
+ * @param exptime - exposition time
+ * @param imtype  - autodark, light or dark
+ * @return 0 if all OK
+ */
+int start_exposition(imstorage *im, char *imtype){
+    double exptime = im->exptime;
+    uint64_t exp100us = exptime * 10000.;
+    uint8_t cmd[6] = {CMD_TAKE_IMAGE};
+    int binning = im->binning;
+    image_type it = IMTYPE_AUTODARK;
+    if(exptime < 5e-5){// 50us
+        WARNX(_("Exposition time should be not less than 1us"));
+        return 1;
+    }
+    DBG("exp: %lu", exp100us);
+    cmd[1] = (exp100us >> 16) & 0xff;
+    cmd[2] = (exp100us >> 8) & 0xff;
+    cmd[3] = exp100us & 0xff;
+    if(exp100us > MAX_EXPTIME_100){
+        WARNX(_("Exposition time too large! Max value: %gs"), ((double)MAX_EXPTIME_100)/10000.);
+        return 2;
+    }
+    const char *bngs[] = {"full", "cropped", "binned 2x2"};
+    const char *b;
+    if(binning != 0xff){ // check binning for non-subframe
+        if(binning > 2 || binning < 0){
+            WARNX(_("Bad binning size: %d, should be 0 (full), 1 (crop) or 2 (binned)"), binning);
+            return 3;
+        }
+        b = bngs[binning];
+    }else b = "subframe";
+    cmd[4] = binning;
+    // and now check image type
+    if(!imtype) return 4;
+    int L = strlen(imtype);
+    if(!L){ WARNX(_("Empty image type")); return 4;}
+    const char *m = "autodark";
+    if(0 == strncasecmp(imtype, "autodark", L)){
+        if(binning == 0){
+            WARNX(_("Auto dark mode don't support full image"));
+            return 5;
+        }
+        cmd[5] = 2;}
+    else if(0 == strncasecmp(imtype, "dark", L)) { cmd[5] = 0; m = "dark";  it = IMTYPE_DARK; }
+    else if(0 == strncasecmp(imtype, "light", L)){ cmd[5] = 1; m = "light"; it = IMTYPE_LIGHT;}
+    else{
+        WARNX(_("Wrong image type: %s, should be \"autodark\", \"light\" or \"dark\""), imtype);
+        return 6;
+    }
+    if(shutter_command("ok")){ // open shutter
+        WARNX(_("Can't open shutter"));
+        return 8;
+    }
+    green("Start expose for %gseconds, mode \"%s\", %s image\n", exptime, m, b);
+    if(send_data(cmd, 6)){
+        WARNX(_("Error sending command"));
+        return 7;
+    }
+    DBG("send: %c %u %u %u %u %u", cmd[0], cmd[1],cmd[2],cmd[3],cmd[4],cmd[5]);
+    if(TRANS_SUCCEED != wait_checksum()){
+        WARNX(_("Didn't get the respond"));
+        return 8;
+    }
+    im->imtype = it;
+    size_t W, H;
+    switch(im->binning){ // set image size
+        case 1: // cropped
+            W = IM_CROPWIDTH;
+            H = IMHEIGHT;
+        break;
+        case 2: // binned
+            W = IMWIDTH / 2;
+            H = IMHEIGHT / 2;
+        break;
+        case 0xff: // subframe
+            W = H = im->subframe->size;
+        break;
+        case 0: // full image
+        default:
+            W = IMWIDTH;
+            H = IMHEIGHT;
+    }
+    im->W = W; im->H = H;
+    return 0;
+}
+
+/**
+ * Wait till image ready
+ * @return 0 if all OK
+ */
+int wait4image(){
+    uint8_t rd = 0;
+    char indi[] = "|/-\\";
+    char *iptr = indi;
+    int stage = 1; // 1 - exp in progress, 2 - readout, 3 - done
+    printf("\nExposure in progress  ");
+    fflush(stdout);
+    while(rd != ANS_EXP_DONE){
+        int L = 0;
+        double d0 = dtime();
+        do{
+            if((L = read_tty(&rd, 1))) break;
+        }while(dtime() - d0 < EXP_DONE_TMOUT);
+        if(!L){
+            printf("\n");
+            WARNX(_("CCD not answer"));
+            return 1;
+        }
+        int nxtstage = 1;
+        if(rd != ANS_EXP_IN_PROGRESS){
+            if(rd == ANS_RDOUT_IN_PROGRESS) nxtstage = 2;
+            else nxtstage = 3;
+        }
+        if(nxtstage == stage){
+            printf("\b%c", *iptr++); // rotating line
+            fflush(stdout);
+            if(!*iptr) iptr = indi;
+        }else{
+            stage = nxtstage;
+            if(stage == 2){
+                printf(_("\nReadout  "));
+                fflush(stdout);
+            }else printf(_("\nDone!\n"));
+        }
+    }
+    return 0;
+}
+
+/**
+ * Collect data by serial terminal
+ * @param img - parameters of exposed image
+ * @return array with image data (allocated here) or NULL
+ */
+uint16_t *get_image(imstorage *img){
+    size_t L = img->W * img->H, rest = L * 2; // rest is datasize in bytes
+    uint16_t *buff = MALLOC(uint16_t, L);
+    if(TRANS_SUCCEED != send_cmd_cs(CMD_XFER_IMAGE)){
+        WARNX(_("Error sending transfer command"));
+        FREE(buff);
+        return NULL;
+    }
+    #ifdef EBUG
+    double tstart = dtime();
+    #endif
+    DBG("rest = %zd", rest);
+    uint8_t *getdataportion(uint8_t *start, size_t l){ // return last byte read + 1
+        int i;
+        uint8_t cs = 0;
+        for(i = 0; i < 4; ++i){ // four tries to get datablock
+            size_t r = 0, got = 0;
+            uint8_t *ptr = start;
+            double d0 = dtime();
+            do{
+                if((r = read_tty(ptr, l))){
+                    d0 = dtime();
+                    ptr += r;
+                    got += r;
+                    l -= r;
+                }
+            }while(l && dtime() - d0 < IMTRANS_TMOUT);
+            DBG("got: %zd", got);
+            if(got < 3){
+                cs = IMTRANS_STOP;
+                write_tty(&cs, 1);
+                return NULL; // nothing to read
+            }
+            --ptr; // *ptr is checksum
+            while(start < ptr) cs ^= *start++;
+            DBG("got checksum: %x, calc: %x", *ptr, cs);
+            if(*ptr == cs){ // all OK
+                DBG("Checksum good");
+                cs = IMTRANS_CONTINUE;
+                write_tty(&cs, 1);
+                return ptr;
+            }else{ // bad checksum
+                DBG("Ask to resend data");
+                cs = IMTRANS_RESEND;
+                write_tty(&cs, 1);
+            }
+        }
+        DBG("not reached");
+        cs = IMTRANS_STOP;
+        write_tty(&cs, 1);
+        return NULL;
+    }
+    uint8_t *bptr = (uint8_t*) buff;
+    int i = 0;
+    // size of single block: 4096 pix in full frame or 1x1bin mode, 1024 in binned mode, subfrmsize in subframe mode
+    size_t dpsize = 4096*2 + 1;
+    if(img->binning == 2) dpsize = 1024*2 + 1;
+    else if(img->binning == 0xff) dpsize = 2*img->subframe->size + 1;
+    do{
+        size_t need = (rest > dpsize) ? dpsize : rest + 1;
+        DBG("I want %zd bytes", need);
+        uint8_t *ptr = getdataportion(bptr, need);
+        if(!ptr){
+            WARNX(_("Error receiving data"));
+            FREE(buff);
+            return NULL;
+        }
+        DBG("portion %d", ++i);
+        rest -= need - 1;
+        bptr = ptr;
+    }while(rest);
+    DBG("Got full data packet, capture time: %.1f seconds", dtime() - tstart);
+    return buff;
 }

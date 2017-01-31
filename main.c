@@ -22,8 +22,10 @@
 #include <signal.h>
 #include "term.h"
 #include "cmdlnopts.h"
+#include "imfunctions.h"
 
 void signals(int signo){
+    abort_image();
     restore_console();
     restore_tty();
     exit(signo);
@@ -42,7 +44,7 @@ int main(int argc, char **argv){
         WARNX(_("Options --daemon and --terminal can't be together!"));
         return 1;
     }
-    if(!try_connect(G->device)){
+    if(!try_connect(G->device, G->speed)){
         WARNX(_("Check power and connection: device not answer!"));
         return 1;
     }
@@ -50,8 +52,32 @@ int main(int argc, char **argv){
     if(fw) printf(_("Firmware version: %s\n"), fw);
     if(G->newspeed && term_setspeed(G->newspeed))
         ERRX(_("Can't change speed to %d"), G->newspeed);
+    if(G->shutter_cmd && shutter_command(G->shutter_cmd))
+        WARNX(_("Can't send shutter command: %s"), G->shutter_cmd);
     if(G->heater != HEATER_LEAVE)
         heater(G->heater); // turn on/off heater
+    if(G->takeimg){
+        imsubframe *F = NULL;
+        if(G->subframe){
+            if(!(F = define_subframe(G->subframe)))
+                ERRX(_("Error defining subframe"));
+            G->binning = 0xff; // take subframe
+        }
+        imstorage *img = chk_storeimg(G->outpfname, G->imstoretype);
+        if(img){
+            img->subframe = F;
+            img->exptime = G->exptime;
+            img->binning = G->binning;
+            if(start_exposition(img, G->imtype))
+                WARNX(_("Error starting exposition"));
+            else if(store_image(img))
+                WARNX(_("Error storing image %s"), img->imname);
+            FREE(img->imname);
+            FREE(img->imdata);
+            FREE(img);
+        }
+        FREE(F);
+    }
     if(G->daemon || G->terminal){
         red(_("All other commandline options rejected!\n"));
         if(G->terminal) run_terminal(); // non-echo terminal mode
