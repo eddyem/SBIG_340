@@ -506,9 +506,11 @@ int start_exposition(imstorage *im, char *imtype){
         WARNX(_("Wrong image type: %s, should be \"autodark\", \"light\" or \"dark\""), imtype);
         return 6;
     }
-    if(shutter_command("ok")){ // open shutter
-        WARNX(_("Can't open shutter"));
-        return 8;
+    if(it != IMTYPE_DARK){
+        if(shutter_command("ok")){ // open shutter
+            WARNX(_("Can't open shutter"));
+            return 8;
+        }
     }
     green("Start expose for %gseconds, mode \"%s\", %s image\n", exptime, m, b);
     if(send_data(cmd, 6)){
@@ -543,13 +545,13 @@ int start_exposition(imstorage *im, char *imtype){
     return 0;
 }
 
+static char indi[] = "|/-\\";
 /**
  * Wait till image ready
  * @return 0 if all OK
  */
 int wait4image(){
     uint8_t rd = 0;
-    char indi[] = "|/-\\";
     char *iptr = indi;
     int stage = 1; // 1 - exp in progress, 2 - readout, 3 - done
     printf("\nExposure in progress  ");
@@ -591,6 +593,7 @@ int wait4image(){
  * @return array with image data (allocated here) or NULL
  */
 uint16_t *get_image(imstorage *img){
+    char *iptr = indi;
     size_t L = img->W * img->H, rest = L * 2; // rest is datasize in bytes
     uint16_t *buff = MALLOC(uint16_t, L);
     if(TRANS_SUCCEED != send_cmd_cs(CMD_XFER_IMAGE)){
@@ -617,7 +620,7 @@ uint16_t *get_image(imstorage *img){
                     l -= r;
                 }
             }while(l && dtime() - d0 < IMTRANS_TMOUT);
-            DBG("got: %zd", got);
+            //DBG("got: %zd", got);
             if(got < 3){
                 cs = IMTRANS_STOP;
                 write_tty(&cs, 1);
@@ -625,9 +628,9 @@ uint16_t *get_image(imstorage *img){
             }
             --ptr; // *ptr is checksum
             while(start < ptr) cs ^= *start++;
-            DBG("got checksum: %x, calc: %x", *ptr, cs);
+            //DBG("got checksum: %x, calc: %x", *ptr, cs);
             if(*ptr == cs){ // all OK
-                DBG("Checksum good");
+                //DBG("Checksum good");
                 cs = IMTRANS_CONTINUE;
                 write_tty(&cs, 1);
                 return ptr;
@@ -643,24 +646,30 @@ uint16_t *get_image(imstorage *img){
         return NULL;
     }
     uint8_t *bptr = (uint8_t*) buff;
-    int i = 0;
+    //int i = 0;
     // size of single block: 4096 pix in full frame or 1x1bin mode, 1024 in binned mode, subfrmsize in subframe mode
     size_t dpsize = 4096*2 + 1;
     if(img->binning == 2) dpsize = 1024*2 + 1;
     else if(img->binning == 0xff) dpsize = 2*img->subframe->size + 1;
+    printf("Transfer data  "); fflush(stdout);
     do{
         size_t need = (rest > dpsize) ? dpsize : rest + 1;
-        DBG("I want %zd bytes", need);
+        //DBG("I want %zd bytes", need);
+        printf("\b%c", *iptr++); // rotating line
+        fflush(stdout);
+        if(!*iptr) iptr = indi;
         uint8_t *ptr = getdataportion(bptr, need);
         if(!ptr){
+            printf("\n");
             WARNX(_("Error receiving data"));
             FREE(buff);
             return NULL;
         }
-        DBG("portion %d", ++i);
+        //DBG("portion %d", ++i);
         rest -= need - 1;
         bptr = ptr;
     }while(rest);
+    printf("\b Done!\n");
     DBG("Got full data packet, capture time: %.1f seconds", dtime() - tstart);
     return buff;
 }

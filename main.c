@@ -65,13 +65,21 @@ int main(int argc, char **argv){
         }
         imstorage *img = chk_storeimg(G->outpfname, G->imstoretype);
         if(img){
+            if(G->dumpbin) img->dump = 1;
             img->subframe = F;
             img->exptime = G->exptime;
             img->binning = G->binning;
-            if(start_exposition(img, G->imtype))
+            if(start_exposition(img, G->imtype)){
                 WARNX(_("Error starting exposition"));
-            else if(store_image(img))
-                WARNX(_("Error storing image %s"), img->imname);
+            }else{
+                if(!get_imdata(img)){
+                    WARNX(_("Error image transfer"));
+                }else{
+                    print_stat(img);
+                    if(store_image(img))
+                        WARNX(_("Error storing image %s"), img->imname);
+                }
+            }
             FREE(img->imname);
             FREE(img->imdata);
             FREE(img);
@@ -82,5 +90,8 @@ int main(int argc, char **argv){
         red(_("All other commandline options rejected!\n"));
         if(G->terminal) run_terminal(); // non-echo terminal mode
         if(G->daemon) daemonize();
+    }
+    if(!G->shutter_cmd){ // close shutter if there wasn't direct command to do something else
+        shutter_command("ck");
     }
 }

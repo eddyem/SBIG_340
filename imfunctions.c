@@ -26,7 +26,7 @@
 #include "term.h"
 #include <strings.h> // strncasecmp
 #include <tiffio.h>  // save tiff
-
+#include <math.h>
 
 // find the first non-exists filename
 char *make_filename(char *outfile, char *ext){
@@ -111,18 +111,13 @@ int writetiff(imstorage *img){
     TIFFSetField(image, TIFFTAG_BITSPERSAMPLE, 16);
     TIFFSetField(image, TIFFTAG_SAMPLESPERPIXEL, 1);
     TIFFSetField(image, TIFFTAG_ROWSPERSTRIP, 1);
-    TIFFSetField(image, TIFFTAG_ORIENTATION, ORIENTATION_BOTLEFT);
+    TIFFSetField(image, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
     TIFFSetField(image, TIFFTAG_COMPRESSION, COMPRESSION_DEFLATE);
     TIFFSetField(image, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
     TIFFSetField(image, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
     TIFFSetField(image, TIFFTAG_RESOLUTIONUNIT, RESUNIT_NONE);
-    //tstrip_t strip = 0;
     for (y = 0; y < H;  ++y, data += W){
-TIFFWriteScanline(image, data, y, 0);
-      /*  if(TIFFWriteEncodedStrip(image, strip, data, W) < 0){
-            ret = 0;
-            goto done;
-        }*/
+        TIFFWriteScanline(image, data, y, 0);
     }
 
 done:
@@ -130,6 +125,64 @@ done:
     return ret;
 }
 
+void print_stat(imstorage *img){
+    size_t size = img->W*img->H, i, Noverld = 0L, N = 0L;
+    double pv, sum=0., sum2=0., sz = (double)size, tres;
+    uint16_t *ptr = img->imdata, val, valoverld;
+    uint16_t max = 0, min = 65535;
+    valoverld = min - 5;
+    for(i = 0; i < size; i++, ptr++){
+        val = *ptr;
+        pv = (double) val;
+        sum += pv;
+        sum2 += (pv * pv);
+        if(max < val) max = val;
+        if(min > val) min = val;
+        if(val >= valoverld) Noverld++;
+    }
+    printf(_("Image stat:\n"));
+    double avr = sum/sz, std = sqrt(fabs(sum2/sz - avr*avr));
+    printf("avr = %.1f, std = %.1f, Noverload = %ld\n", avr, std, Noverld);
+    printf("max = %u, min = %u, W*H = %ld\n", max, min, size);
+    Noverld = 0L;
+    ptr = img->imdata; sum = 0.; sum2 = 0.;
+    tres = avr + 3. * std; // max treshold == 3sigma
+    for(i = 0; i < size; i++, ptr++){
+        val = *ptr;
+        pv = (double) val;
+        if(pv > tres){
+            Noverld++; // now this is an amount of overload pixels
+            continue;
+        }
+        sum += pv;
+        sum2 += (pv * pv);
+        N++;
+    }
+    if(!N){
+        printf("All pixels are over 3sigma threshold!\n");
+        return;
+    }
+    sz = (double)N;
+    avr = sum/sz; std = sqrt(fabs(sum2/sz - avr*avr));
+    printf("At 3sigma: Noverload = %ld, avr = %.3f, std = %.3f\n", Noverld, avr, std);
+}
+
+
+/**
+ * Receive image data & fill img->imdata
+ * @return imdata or NULL if failed
+ */
+uint16_t *get_imdata(imstorage *img){
+    if(wait4image()) return NULL;
+    DBG("OK, get image");
+    uint16_t *imdata = get_image(img);
+    if(!imdata){
+        WARNX(_("Error readout"));
+        return NULL;
+    }
+    img->imdata = imdata;
+    return imdata;
+}
 
 /**
  * Save image
@@ -137,20 +190,23 @@ done:
  * @return 0 if all OK
  */
 int store_image(imstorage *img){
-    if(wait4image()) return 1;
-    DBG("OK, get image");
-    uint16_t *imdata = get_image(img);
-    if(!imdata){
-        WARNX(_("Error readout"));
-        return 2;
-    }
-    img->imdata = imdata;
+    if(!img->imdata && !get_imdata(img)) return 1;
     green("Save image into %s\n", img->imname);
-    /*int f = open(img->imname, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    if(f){
-        DBG("%zd", write(f, img->imdata, img->W*img->H*2));
-        close(f);
-    }*/
     if(!writetiff(img)) return 3;
+    if(img->dump){
+        int f = open("dump.bin", O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        if(f){
+            size_t S = img->W*img->H*2;
+            if(S != (size_t)write(f, img->imdata, S)){
+                WARN(_("Error writting `dump.bin`"));
+                return 4;
+            }
+            green(_("Image dump stored in `dump.bin`\n"));
+            close(f);
+        }else{
+            WARN(_("Can't make dump"));
+            return 5;
+        }
+    }
     return 0;
 }

@@ -49,6 +49,7 @@ typedef struct{
     int binning;
     image_type imtype;
     double exptime;
+    int dump;
     imsubframe *subframe;
     size_t W, H;      // image size
     uint16_t *imdata; // image data itself
@@ -56,5 +57,7 @@ typedef struct{
 
 imstorage *chk_storeimg(char *filename, char* store);
 int store_image(imstorage *filename);
+void print_stat(imstorage *img);
+uint16_t *get_imdata(imstorage *img);
 
 #endif // __IMFUNCTIONS_H__

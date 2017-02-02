@@ -1,6 +1,6 @@
 # run `make DEF=...` to add extra defines
 PROGRAM := sbig340
-LDFLAGS := -ltiff -fdata-sections -ffunction-sections -Wl,--gc-sections -Wl,--discard-all
+LDFLAGS := -ltiff -lm -fdata-sections -ffunction-sections -Wl,--gc-sections -Wl,--discard-all
 SRCS := $(wildcard *.c)
 DEFINES := $(DEF) -D_XOPEN_SOURCE=1111 -DEBUG
 OBJDIR := mk

@@ -54,7 +54,8 @@ glob_pars const Gdefault = {
     .takeimg = 0,
     .imtype = "a",
     .imstoretype = NULL,
-    .outpfname = "output.tiff"
+    .outpfname = "output.tiff",
+    .dumpbin = 0
 };
 
 /*
@@ -81,6 +82,7 @@ myoption cmdlnopts[] = {
     {"imtype",  NEED_ARG,   NULL,   'T',    arg_string, APTR(&G.imtype),    _("image type: light (l, L), autodark (a, A), dark (d, D)")},
     {"storetype",NEED_ARG,  NULL,   'S',    arg_string, APTR(&G.imstoretype),_("'overwrite'/'rewrite' to rewrite existing image, 'enumerate'/'numerate' to use given filename as base for series")},
     {"output",  NEED_ARG,   NULL,   'o',    arg_string, APTR(&G.outpfname), _("output file name (default: output.tiff)")},
+    {"dump",    NO_ARGS,    NULL,   0,      arg_none,   APTR(&G.dumpbin),   _("dump binary data into file `dump.bin`")},
     // simple integer parameter with obligatory arg:
    end_option
 };
