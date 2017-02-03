@@ -25,37 +25,49 @@
 #define __IMFUNCTIONS_H__
 #include <stdint.h>
 
+// how to save files: rewrite, check existance or add number
 typedef enum{
     STORE_REWRITE,
     STORE_NORMAL,
     STORE_NEXTNUM
 } store_type;
 
+// which format should be used when image stored (OR`ed)
+typedef enum{
+    FORMAT_NONE = 0,
+    FORMAT_FITS = 1,
+    FORMAT_TIFF = 2,
+    FORMAT_RAW  = 4
+} image_format;
+
+// exposed image type
 typedef enum{
     IMTYPE_AUTODARK,
     IMTYPE_LIGHT,
     IMTYPE_DARK
 } image_type;
 
+// subframe parameters
 typedef struct{
     uint16_t Xstart;
     uint16_t Ystart;
     uint8_t size;
 } imsubframe;
 
+// all data of image stored
 typedef struct{
     store_type st; // how would files be stored
-    char *imname;
-    int binning;
+    char *imname;  // image basename
+    image_format imformat;
     image_type imtype;
     double exptime;
-    int dump;
+    int binning;
     imsubframe *subframe;
     size_t W, H;      // image size
     uint16_t *imdata; // image data itself
 } imstorage;
 
-imstorage *chk_storeimg(char *filename, char* store);
+imstorage *chk_storeimg(char *filename, char* store, char *format);
 int store_image(imstorage *filename);
 void print_stat(imstorage *img);
 uint16_t *get_imdata(imstorage *img);

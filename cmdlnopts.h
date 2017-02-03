@@ -46,7 +46,7 @@ typedef struct{
     char *imtype;           // image type (light, autodark, dark)
     char *imstoretype;      // "overwrite" (or "rewrite"), "normal" (or NULL), "enumerate" (or "numerate")
     char *outpfname;        // output filename for image storing
-    int dumpbin;            // dump raw binary data
+    char *imformat;         // output file format
     char** rest_pars;       // the rest parameters: array of char*
 } glob_pars;
 

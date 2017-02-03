@@ -28,16 +28,40 @@
 #include <tiffio.h>  // save tiff
 #include <math.h>
 
-// find the first non-exists filename
-char *make_filename(char *outfile, char *ext){
+// image type suffixes
+#define SUFFIX_FITS         "fits"
+#define SUFFIX_RAW          "bin"
+#define SUFFIX_TIFF         "tiff"
+
+/**
+ * NON THREAD-SAFE!
+ * make filename for given name, suffix and storage type
+ * @return filename or NULL if can't create it
+ */
+static char *make_filename(const char *outfile, const char *suff, store_type st){
     struct stat filestat;
     static char buff[FILENAME_MAX];
+    if(st == STORE_NORMAL || st == STORE_REWRITE){
+        snprintf(buff, FILENAME_MAX, "%s.%s", outfile, suff);
+        if(stat(buff, &filestat)){
+            if(ENOENT != errno){
+                WARN(_("Error access file %s"), buff);
+                return NULL; // some error
+            }
+            else return buff;
+        }else{ // file exists
+            if(st == STORE_REWRITE) return buff;
+            else return NULL; // file exists on option STORE_NORMAL
+        }
+    }
+    // STORE_NEXTNUM
     int num;
     for(num = 1; num < 10000; num++){
-        if(snprintf(buff, FILENAME_MAX, "%s_%04d.%s", outfile, num, ext) < 1)
+        if(snprintf(buff, FILENAME_MAX, "%s_%04d.%s", outfile, num, suff) < 1)
             return NULL;
-        if(stat(buff, &filestat) && ENOENT == errno) // OK, file not exists
+        if(stat(buff, &filestat) && ENOENT == errno){ // OK, file not exists
             return buff;
+        }
     }
     return NULL;
 }
@@ -47,8 +71,10 @@ char *make_filename(char *outfile, char *ext){
  * @param filename (i) - output file name (or prefix with suffix)
  * @param store    (i) - "overwrite" (or "rewrite"), "normal" (or NULL), "enumerate" (or "numerate")
  */
-imstorage *chk_storeimg(char *filename, char* store){
+imstorage *chk_storeimg(char *filename, char* store, char *format){
+    FNAME();
     store_type st = STORE_NORMAL;
+    image_format fmt = FORMAT_FITS;
     if(store){ // rewrite or enumerate
         int L = strlen(store);
         if(0 == strncasecmp(store, "overwrite", L) || 0 == strncasecmp(store, "rewrite", L)) st = STORE_REWRITE;
@@ -58,53 +84,67 @@ imstorage *chk_storeimg(char *filename, char* store){
             return NULL;
         }
     }
-    char *f2store = filename;
     char *nm = strdup(filename);
     if(!nm) ERRX("strdup");
     char *pt = strrchr(nm, '.');
-    if(!pt){
-        WARNX(_("Wrong image name pattern: this should be a filename with suffix .tiff or .jpg"));
-        FREE(nm);
-        return NULL;
-    }
-    *pt++ = 0;
-    if(strcmp(pt, "tiff") && strcmp(pt, "jpg")){
-        WARNX("Can save only into jpg or tiff files!");
-        return NULL;
-    }
-    if(st == STORE_NORMAL){
-        struct stat filestat;
-        if(stat(filename, &filestat)){
-            if(ENOENT != errno){
-                WARN(_("Error access file %s"), filename);
+    if(pt){
+        char *suff = pt + 1;
+        DBG("got suffix: %s", suff);
+        // check if name's suffix is filetype
+        image_format fbysuff = FORMAT_NONE;
+        if(0 == strcasecmp(suff, "tiff") || 0 == strcasecmp(suff, "tif")) fbysuff = FORMAT_TIFF;
+        else if(0 == strcasecmp(suff, "fits") || 0 == strcasecmp(suff, "fit")) fbysuff = FORMAT_FITS;
+        else if(0 == strcasecmp(suff, "raw") || 0 == strcasecmp(suff, "bin") || 0 == strcasecmp(suff, "dump"))
+            fbysuff = FORMAT_RAW;
+        if(fbysuff != FORMAT_NONE) *pt = 0; // truncate filename if suffix found
+        if(format){ // check if user gave format
+            fbysuff = FORMAT_NONE;
+            if(strchr(format, 'f') || strchr(format, 'F')) fbysuff |= FORMAT_FITS;
+            if(strchr(format, 't') || strchr(format, 'T')) fbysuff |= FORMAT_TIFF;
+            if(strchr(format, 'r') || strchr(format, 'R') ||
+               strchr(format, 'd') || strchr(format, 'D')) fbysuff |= FORMAT_RAW;
+            if(fbysuff == FORMAT_NONE){
+                WARNX(_("Wrong format string: %s"), format);
+                free(nm);
                 return NULL;
             }
-        }else{
-            WARNX(_("The file %s exists, use '-Srew' option to rewrite"));
+            fmt = fbysuff;
+        }else{// if user gave image with suffix, change format; else leave default: FITS
+            if(fbysuff != FORMAT_NONE) fmt = fbysuff;
+            DBG("fmt: %d", fmt);
+        }
+    }
+    // now check all names
+    #define FMTSZ (3)
+    image_format formats[FMTSZ] = {FORMAT_FITS, FORMAT_TIFF, FORMAT_RAW};
+    const char *suffixes[FMTSZ] = {SUFFIX_FITS, SUFFIX_TIFF, SUFFIX_RAW};
+    for(size_t i = 0; i < FMTSZ; ++i){
+        if(!(formats[i] & fmt)) continue;
+        if(!make_filename(nm, suffixes[i], st)){
+            WARNX(_("Can't create output file"));
+            free(nm);
             return NULL;
         }
-    }else if(st == STORE_NEXTNUM){
-        f2store = make_filename(nm, pt);
     }
-    FREE(nm);
     imstorage *ist = MALLOC(imstorage, 1);
     ist->st = st;
-    ist->imname = strdup(f2store);
-    if(!ist->imname)ERR("strdup");
+    ist->imformat = fmt;
+    ist->imname = strdup(nm);
     return ist;
 }
 
 /**
  * Try to write tiff file
+ * @return 1 if all OK
  */
 int writetiff(imstorage *img){
-    int ret = 1, H = img->H, W = img->W, y;
+    int H = img->H, W = img->W, y;
     uint16_t *data = img->imdata;
-    TIFF *image = TIFFOpen(img->imname, "w");
-    if(!image){
-        WARN("Can't open tiff file");
-        ret = 0;
-        goto done;
+    char *name = make_filename(img->imname, SUFFIX_TIFF, img->st);
+    TIFF *image = NULL;
+    if(!name || !(image = TIFFOpen(name, "w"))){
+        WARN("Can't save tiff file");
+        return 0;
     }
     TIFFSetField(image, TIFFTAG_IMAGEWIDTH, W);
     TIFFSetField(image, TIFFTAG_IMAGELENGTH, H);
@@ -116,13 +156,18 @@ int writetiff(imstorage *img){
     TIFFSetField(image, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
     TIFFSetField(image, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
     TIFFSetField(image, TIFFTAG_RESOLUTIONUNIT, RESUNIT_NONE);
+    size_t S = W*sizeof(uint16_t);
     for (y = 0; y < H;  ++y, data += W){
-        TIFFWriteScanline(image, data, y, 0);
+        if(S != (size_t)TIFFWriteEncodedStrip(image, y, data, S)){
+            WARNX(_("Error writing %s"), name);
+            TIFFClose(image);
+            return 0;
+        }
+        //TIFFWriteScanline(image, data, y, 0);
     }
-
-done:
-    if(image) TIFFClose(image);
-    return ret;
+    TIFFClose(image);
+    green(_("Image %s saved\n"), name);
+    return 1;
 }
 
 void print_stat(imstorage *img){
@@ -185,28 +230,75 @@ uint16_t *get_imdata(imstorage *img){
 }
 
 /**
+ * save truncated to 256 levels histogram of `img` into file `f`
+ * @return 0 if all OK
+ */
+int save_histo(FILE *f, imstorage *img){
+    uint8_t histogram[256];
+    if(!img->imdata) return 1000;
+    size_t l, S = img->W*img->H;
+    uint16_t *ptr = img->imdata;
+    for(l = 0; l < S; ++l, ++ptr){
+        ++histogram[(*ptr>>8)&0xff];
+    }
+    for(l = 0; l < 256; ++l){
+        int status = fprintf(f, "%zd\t%u\n", l, histogram[l]);
+        if(status < 0)
+            return status;
+    }
+    return 0;
+}
+
+int writedump(imstorage *img){
+    char *name = make_filename(img->imname, SUFFIX_RAW, img->st);
+    if(!name) return 1;
+    int f = open(name, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if(f){
+        size_t S = img->W*img->H*2;
+        if(S != (size_t)write(f, img->imdata, S)){
+            WARN(_("Error writting `%s`"), name);
+            return 2;
+        }
+        green(_("Image dump stored in `%s`\n"), name);
+        close(f);
+    }else{
+        WARN(_("Can't make dump"));
+        return 3;
+    }
+    name = make_filename(img->imname, "_histogram.txt", img->st);
+    if(!name) return 4;
+    FILE *h = fopen(name, "w");
+    if(!h) return 5;
+    int i = -1;
+    if(f){
+        i = save_histo(h, img);
+        fclose(h);
+    }
+    if(i < 0){
+        WARN(_("Can't save histogram"));
+        return 6;
+    }else{
+        green(_("Truncated to 256 levels histogram stored in file `%s`\n"), name);
+    }
+    return 0;
+}
+
+/**
  * Save image
  * @param filename (i) - output file name
  * @return 0 if all OK
  */
 int store_image(imstorage *img){
+    int status = 0;
     if(!img->imdata && !get_imdata(img)) return 1;
-    green("Save image into %s\n", img->imname);
-    if(!writetiff(img)) return 3;
-    if(img->dump){
-        int f = open("dump.bin", O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-        if(f){
-            size_t S = img->W*img->H*2;
-            if(S != (size_t)write(f, img->imdata, S)){
-                WARN(_("Error writting `dump.bin`"));
-                return 4;
-            }
-            green(_("Image dump stored in `dump.bin`\n"));
-            close(f);
-        }else{
-            WARN(_("Can't make dump"));
-            return 5;
-        }
+    if(img->imformat & FORMAT_TIFF){ // save tiff file
+        if(!writetiff(img)) status |= 1;
     }
-    return 0;
+    if(img->imformat & FORMAT_RAW){
+        if(!writedump(img)) status |= 2;
+    }
+    if(img->imformat & FORMAT_FITS){ // not supported yet
+        status |= 4;
+    }
+    return status;
 }

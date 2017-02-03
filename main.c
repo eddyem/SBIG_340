@@ -63,9 +63,9 @@ int main(int argc, char **argv){
                 ERRX(_("Error defining subframe"));
             G->binning = 0xff; // take subframe
         }
-        imstorage *img = chk_storeimg(G->outpfname, G->imstoretype);
+        imstorage *img = chk_storeimg(G->outpfname, G->imstoretype, G->imformat);
         if(img){
-            if(G->dumpbin) img->dump = 1;
+            DBG("OK");
             img->subframe = F;
             img->exptime = G->exptime;
             img->binning = G->binning;
@@ -77,7 +77,7 @@ int main(int argc, char **argv){
                 }else{
                     print_stat(img);
                     if(store_image(img))
-                        WARNX(_("Error storing image %s"), img->imname);
+                        WARNX(_("Error storing image"));
                 }
             }
             FREE(img->imname);

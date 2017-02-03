@@ -462,6 +462,7 @@ imsubframe *define_subframe(char *parm){
  * @return 0 if all OK
  */
 int start_exposition(imstorage *im, char *imtype){
+    FNAME();
     double exptime = im->exptime;
     uint64_t exp100us = exptime * 10000.;
     uint8_t cmd[6] = {CMD_TAKE_IMAGE};

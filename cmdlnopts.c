@@ -52,10 +52,10 @@ glob_pars const Gdefault = {
     .exptime = 1.,
     .binning = 0,
     .takeimg = 0,
-    .imtype = "a",
+    .imtype = "l",
+    .imformat = NULL,
     .imstoretype = NULL,
     .outpfname = "output.tiff",
-    .dumpbin = 0
 };
 
 /*
@@ -73,16 +73,15 @@ myoption cmdlnopts[] = {
     {"spd-list",NO_ARGS,    NULL,   'l',    arg_int,    APTR(&G.splist),    _("list speeds available")},
     {"baudrate",NEED_ARG,   NULL,   'b',    arg_int,    APTR(&G.speed),     _("connect at given baudrate without autocheck")},
     {"spd-set", NEED_ARG,   NULL,   's',    arg_int,    APTR(&G.newspeed),  _("set terminal speed")},
-    // only long variants
     {"shutter", NEED_ARG,   NULL,   0,      arg_string, APTR(&G.shutter_cmd),_("shutter command: 'o' for open, 'c' for close, 'k' for de-energize")},
     {"subframe",NEED_ARG,   NULL,   0,      arg_string, APTR(&G.subframe),  _("select subframe: x,y,size")},
-    {"exptime", NEED_ARG,   NULL,   'x',    arg_double, APTR(&G.exptime),   _("exposition time (1s by default)")},
-    {"binning", NEED_ARG,   NULL,   'B',    arg_int,    APTR(&G.binning),   _("binning (1 by default)")},
+    {"exptime", NEED_ARG,   NULL,   'x',    arg_double, APTR(&G.exptime),   _("exposition time in seconds (default: 1s)")},
+    {"binning", NEED_ARG,   NULL,   'B',    arg_int,    APTR(&G.binning),   _("binning (default 0: full size)")},
     {"start-exp",NO_ARGS,   NULL,   'X',    arg_int,    APTR(&G.takeimg),   _("start exposition")},
-    {"imtype",  NEED_ARG,   NULL,   'T',    arg_string, APTR(&G.imtype),    _("image type: light (l, L), autodark (a, A), dark (d, D)")},
+    {"imtype",  NEED_ARG,   NULL,   'T',    arg_string, APTR(&G.imtype),    _("image type: light (l, L), autodark (a, A), dark (d, D); default: light")},
     {"storetype",NEED_ARG,  NULL,   'S',    arg_string, APTR(&G.imstoretype),_("'overwrite'/'rewrite' to rewrite existing image, 'enumerate'/'numerate' to use given filename as base for series")},
     {"output",  NEED_ARG,   NULL,   'o',    arg_string, APTR(&G.outpfname), _("output file name (default: output.tiff)")},
-    {"dump",    NO_ARGS,    NULL,   0,      arg_none,   APTR(&G.dumpbin),   _("dump binary data into file `dump.bin`")},
+    {"imformat",NEED_ARG,   NULL,   'f',    arg_string, APTR(&G.imformat),  _("image format: FITS (f), TIFF (t), raw dump with histogram storage (r,d), may be OR'ed; default: FITS or based on output image name")},
     // simple integer parameter with obligatory arg:
    end_option
 };
