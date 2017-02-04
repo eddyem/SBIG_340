@@ -75,7 +75,6 @@ int main(int argc, char **argv){
                 if(!get_imdata(img)){
                     WARNX(_("Error image transfer"));
                 }else{
-                    print_stat(img);
                     if(store_image(img))
                         WARNX(_("Error storing image"));
                 }

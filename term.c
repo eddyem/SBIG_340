@@ -21,6 +21,7 @@
 #include "usefull_macros.h"
 #include "term.h"
 #include <strings.h> // strncasecmp
+#include <time.h>    // time(NULL)
 
 #define BUFLEN 1024
 
@@ -543,6 +544,7 @@ int start_exposition(imstorage *im, char *imtype){
             H = IMHEIGHT;
     }
     im->W = W; im->H = H;
+    im->exposetime = time(NULL);
     return 0;
 }
 

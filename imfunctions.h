@@ -63,8 +63,9 @@ typedef struct{
     double exptime;
     int binning;
     imsubframe *subframe;
-    size_t W, H;      // image size
-    uint16_t *imdata; // image data itself
+    size_t W, H;       // image size
+    uint16_t *imdata;  // image data itself
+    time_t exposetime; // time of exposition start
 } imstorage;
 
 imstorage *chk_storeimg(char *filename, char* store, char *format);
