@@ -118,12 +118,21 @@ trans_status send_cmd_cs(uint8_t cmd){
     return wait_checksum();
 }
 
+static int download_in_progress = 0; // == 1 when image downloading runs
 /**
  * Abort image exposition
  * Used only on exit, so don't check commands status
  */
 void abort_image(){
+    uint8_t tmpbuf[4096];
+    if(download_in_progress){
+        read_tty(tmpbuf, 4096);
+        send_cmd(IMTRANS_STOP);
+        download_in_progress = 0;
+    }
+    read_tty(tmpbuf, 4096);
     send_cmd_cs(CMD_ABORT_IMAGE);
+    read_tty(tmpbuf, 4096);
 }
 
 /**
@@ -195,12 +204,14 @@ int try_connect(char *device, int speed){
         if((spdstart = chkspeed(speed)) < 0) return 0;
         spdmax = spdstart + 1;
     }
+    uint8_t tmpbuf[4096];
     green(_("Connecting to %s... "), device);
     for(curspd = spdstart; curspd < spdmax; ++curspd){
         tty_init(device, Bspeeds[curspd]);
         DBG("Try speed %d", speeds[curspd]);
         int ctr;
         for(ctr = 0; ctr < 10; ++ctr){ // 10 tries to send data
+            read_tty(tmpbuf, 4096); // clear rbuf
             if(send_cmd(CMD_COMM_TEST)) continue;
             else break;
         }
@@ -401,7 +412,7 @@ imsubframe *define_subframe(char *parm){
         return NULL;
     }
     if(L > IMWIDTH - 1 || L < 1){
-        WARNX(_("Xstart should be in range 0..%d"), IMWIDTH - 1 );
+        WARNX(_("Xstart should be in range 1..%d"), IMWIDTH - 1 );
         return NULL;
     }
     parm = eptr + 1;
@@ -412,7 +423,7 @@ imsubframe *define_subframe(char *parm){
         return NULL;
     }
     if(L > IMHEIGHT - 1 || L < 1){
-        WARNX(_("Ystart should be in range 0..%d"), IMHEIGHT - 1 );
+        WARNX(_("Ystart should be in range 1..%d"), IMHEIGHT - 1 );
         return NULL;
     }
     Y = (uint16_t)L;
@@ -514,7 +525,7 @@ int start_exposition(imstorage *im, char *imtype){
             return 8;
         }
     }
-    green("Start expose for %gseconds, mode \"%s\", %s image\n", exptime, m, b);
+    green("Start expose for %g seconds, mode \"%s\", %s image\n", exptime, m, b);
     if(send_data(cmd, 6)){
         WARNX(_("Error sending command"));
         return 7;
@@ -604,6 +615,7 @@ uint16_t *get_image(imstorage *img){
         FREE(buff);
         return NULL;
     }
+    download_in_progress = 1;
     #ifdef EBUG
     double tstart = dtime();
     #endif
@@ -666,6 +678,7 @@ uint16_t *get_image(imstorage *img){
             printf("\n");
             WARNX(_("Error receiving data"));
             FREE(buff);
+            download_in_progress = 0;
             return NULL;
         }
         //DBG("portion %d", ++i);
@@ -674,5 +687,6 @@ uint16_t *get_image(imstorage *img){
     }while(rest);
     printf("\b Done!\n");
     DBG("Got full data packet, capture time: %.1f seconds", dtime() - tstart);
+    download_in_progress = 0;
     return buff;
 }

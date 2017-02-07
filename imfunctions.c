@@ -30,6 +30,21 @@
 #include <time.h>    // time, gmtime etc
 #include <fitsio.h>  // save fits
 #include <libgen.h>  // basename
+#include <sys/stat.h> // utimensat
+#include <fcntl.h>   // AT_...
+/**
+ * All image-storing functions modify ctime of saved files to be the time of
+ * exposition start!
+ */
+
+void modifytimestamp(char *filename, imstorage *img){
+    if(!filename) return;
+    struct timespec times[2];
+    memset(times, 0, 2*sizeof(struct timespec));
+    times[0].tv_nsec = UTIME_OMIT;
+    times[1].tv_sec = img->exposetime; // change mtime
+    if(utimensat(AT_FDCWD, filename, times, 0)) WARN(_("Can't change timestamp for %s"), filename);
+}
 
 // image type suffixes
 #define SUFFIX_FITS         "fits"
@@ -175,6 +190,7 @@ int writetiff(imstorage *img){
     }
     TIFFClose(image);
     green(_("Image %s saved\n"), name);
+    modifytimestamp(name, img);
     return 0;
 }
 
@@ -313,6 +329,7 @@ int writefits(imstorage *img){
     TRYFITS(fits_write_img, fp, TUSHORT, 1, img->W * img->H, img->imdata);
     TRYFITS(fits_close_file, fp);
     if(*filename == '!') ++filename; // remove '!' from filename
+    modifytimestamp(filename, img);
     green(_("Image %s saved\n"), filename);
     return 0;
 }
@@ -340,19 +357,39 @@ uint16_t *get_imdata(imstorage *img){
  */
 int save_histo(FILE *f, imstorage *img){
     if(!img->imdata) return 1000;
-    uint8_t histogram[256];
+    size_t histogram[256];
     size_t l, S = img->W*img->H;
     uint16_t *ptr = img->imdata;
-    memset(histogram, 0, 256);
+    memset(histogram, 0, 256 * sizeof(size_t));
     for(l = 0; l < S; ++l, ++ptr){
         ++histogram[((*ptr)>>8)&0xff];
     }
     for(l = 0; l < 256; ++l){
-        int status = fprintf(f, "%zd\t%u\n", l, histogram[l]);
+        int status = fprintf(f, "%zd\t%zd\n", l, histogram[l]);
         if(status < 0){
             return status;
         }
     }
+    size_t low2 = S/50, med = S/2, up2 = (S*49)/50, acc = 0;
+    int lval = -1, mval = -1, tval = -1;
+    for(l = 0; l < 256; ++l){ // get stat parameters
+        acc += histogram[l];
+        if(lval < 0 && acc >= low2) lval = l;
+        else if(mval < 0 && acc >= med) mval = l;
+        else if(tval < 0 && acc >= up2) tval = l;
+    }
+    printf("low 2%% (%zd pixels) = %d, median (%zd pixels) = %d, up 2%% (%zd pixels) = %d\n",
+        low2, lval, med, mval, up2, tval);
+    double mul = 1., mulmax = 255. / tval;
+    if(mval < 120 || mval > 134){
+        if(lval > 32) mul = 96. / mval;
+        else if(mval < 127) mul = 120. / mval;
+        else if(mval < 196) mul = 120. / (mval - lval);
+        else if(mval < 245) mul = 96. / (tval - lval);
+        else mval = 0.03;
+    }
+    if(mul > mulmax) mul = mulmax;
+    green("Recommended exposition time: %.2f seconds\n", img->exptime * mul);
     return 0;
 }
 
@@ -372,6 +409,7 @@ int writedump(imstorage *img){
         WARN(_("Can't make dump"));
         return 3;
     }
+    modifytimestamp(name, img);
     name = make_filename(img->imname, "histogram.txt", img->st);
     if(!name) return 4;
     FILE *h = fopen(name, "w");
@@ -380,6 +418,7 @@ int writedump(imstorage *img){
     if(f){
         i = save_histo(h, img);
         fclose(h);
+        modifytimestamp(name, img);
     }
     if(i < 0){
         WARN(_("Can't save histogram"));
@@ -397,8 +436,8 @@ int writedump(imstorage *img){
  */
 int store_image(imstorage *img){
     int status = 0;
-    print_stat(img);
     if(!img->imdata && !get_imdata(img)) return 1;
+    print_stat(img);
     if(img->imformat & FORMAT_TIFF){ // save tiff file
         if(writetiff(img)) status |= 1;
     }
