@@ -30,7 +30,6 @@
  * here are some typedef's for global data
  */
 typedef struct{
-    int daemon;             // to daemonize
     int terminal;           // run as terminal (send/receive)
     char *device;           // serial device name
     int rest_pars_num;      // number of rest parameters
@@ -47,12 +46,11 @@ typedef struct{
     char *imstoretype;      // "overwrite" (or "rewrite"), "normal" (or NULL), "enumerate" (or "numerate")
     char *outpfname;        // output filename for image storing
     char *imformat;         // output file format
+    char *hostname;         // hostname to connect
+    char *port;             // port to connect
     char** rest_pars;       // the rest parameters: array of char*
 } glob_pars;
 
-
-// default & global parameters
-extern int rewrite_ifexists, verbose;
 
 glob_pars *parse_args(int argc, char **argv);
 #endif // __CMDLNOPTS_H__

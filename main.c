@@ -19,31 +19,44 @@
  * MA 02110-1301, USA.
  */
 #include "usefull_macros.h"
+#include <sys/wait.h>
+#include <sys/prctl.h>
 #include <signal.h>
-#include "term.h"
+#ifndef EBUG
+#include <sys/prctl.h>
+#endif
+#ifndef CLIENT
+    #include "term.h"
+#endif
 #include "cmdlnopts.h"
 #include "imfunctions.h"
+#if defined CLIENT || defined DAEMON
+    #include "socket.h"
+#endif
 
 void signals(int signo){
+#ifndef CLIENT
     abort_image();
     restore_console();
     restore_tty();
+#endif
     exit(signo);
 }
 
 int main(int argc, char **argv){
     initial_setup();
-    for(int i = 0; i < 255; ++i) signal(i, signals);
-    signal(SIGTSTP, SIG_IGN); // ctrl+Z - ignore
-    signal(SIGQUIT, SIG_IGN); // ctrl+\ - ignore
-
+    signal(SIGTERM, signals); // kill (-15) - quit
+    signal(SIGHUP, SIG_IGN);  // hup - ignore
+    signal(SIGINT, signals);  // ctrl+C - quit
+    signal(SIGQUIT, signals); // ctrl+\ - quit
+    signal(SIGTSTP, SIG_IGN); // ignore ctrl+Z
     glob_pars *G = parse_args(argc, argv);
-    printf("sp: %d\n", G->splist);
+
+    imstorage *img = NULL;
+    imsubframe *F = NULL;
+
+#ifndef CLIENT
     if(G->splist) list_speeds();
-    if(G->daemon && G->terminal){
-        WARNX(_("Options --daemon and --terminal can't be together!"));
-        return 1;
-    }
     if(!try_connect(G->device, G->speed)){
         WARNX(_("Check power and connection: device not answer!"));
         return 1;
@@ -56,41 +69,60 @@ int main(int argc, char **argv){
         WARNX(_("Can't send shutter command: %s"), G->shutter_cmd);
     if(G->heater != HEATER_LEAVE)
         heater(G->heater); // turn on/off heater
+#if !defined DAEMON && !defined CLIENT
     if(G->takeimg){
-        imsubframe *F = NULL;
+#endif
         if(G->subframe){
             if(!(F = define_subframe(G->subframe)))
                 ERRX(_("Error defining subframe"));
             G->binning = 0xff; // take subframe
         }
-        imstorage *img = chk_storeimg(G->outpfname, G->imstoretype, G->imformat);
+#endif // !CLIENT
+#ifndef DAEMON
+        img = chk_storeimg(G->outpfname, G->imstoretype, G->imformat);
+#else
+        img = MALLOC(imstorage, 1); // just allocate empty: all we need in daemon is exposition & binning
+#endif
+#ifndef CLIENT
         if(img){
             DBG("OK");
             img->subframe = F;
             img->exptime = G->exptime;
             img->binning = G->binning;
-            if(start_exposition(img, G->imtype)){
+
+            if(start_exposition(img, G->imtype)){ // start test exposition even in daemon
                 WARNX(_("Error starting exposition"));
             }else{
                 if(!get_imdata(img)){
                     WARNX(_("Error image transfer"));
                 }else{
+#ifndef DAEMON
                     if(store_image(img))
                         WARNX(_("Error storing image"));
+#endif // !DAEMON
                 }
             }
-            FREE(img->imname);
-            FREE(img->imdata);
-            FREE(img);
         }
-        FREE(F);
+#endif // !CLIENT
+#if !defined DAEMON && !defined CLIENT
     }
-    if(G->daemon || G->terminal){
+    if(G->terminal){
         red(_("All other commandline options rejected!\n"));
-        if(G->terminal) run_terminal(); // non-echo terminal mode
-        if(G->daemon) daemonize();
+        run_terminal(); // non-echo terminal mode
     }
+#endif // !defined DAEMON && !defined CLIENT
+#if defined CLIENT || defined DAEMON
+    daemonize(img, G->hostname, G->port);
+#endif
+    if(img){
+        FREE(img->imname);
+        FREE(img->imdata);
+        FREE(img);
+    }
+    FREE(F);
+#if !defined DAEMON && !defined CLIENT
     if(!G->shutter_cmd){ // close shutter if there wasn't direct command to do something else
         shutter_command("ck");
     }
+#endif // !defined DAEMON && !defined CLIENT
 }

@@ -18,6 +18,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  * MA 02110-1301, USA.
  */
+#ifndef CLIENT
+
 #include "usefull_macros.h"
 #include "term.h"
 #include <strings.h> // strncasecmp
@@ -96,7 +98,7 @@ trans_status wait_checksum(){
     int r;
     double d0 = dtime();
     do{
-        if((r = read_tty(&chr, 1))) break;
+        if((r = read_tty(&chr, 1)) && chr == last_chksum) break;
         DBG("wait..");
     }while(dtime() - d0 < WAIT_TMOUT);
     if(dtime() - d0 >= WAIT_TMOUT) return TRANS_TIMEOUT;
@@ -208,6 +210,7 @@ int try_connect(char *device, int speed){
     green(_("Connecting to %s... "), device);
     for(curspd = spdstart; curspd < spdmax; ++curspd){
         tty_init(device, Bspeeds[curspd]);
+        read_tty(tmpbuf, 4096); // clear rbuf
         DBG("Try speed %d", speeds[curspd]);
         int ctr;
         for(ctr = 0; ctr < 10; ++ctr){ // 10 tries to send data
@@ -324,12 +327,6 @@ void run_terminal(){
             }
         }
     }
-}
-
-/**
- * Run as daemon
- */
-void daemonize(){
 }
 
 void heater(heater_cmd cmd){
@@ -477,11 +474,12 @@ int start_exposition(imstorage *im, char *imtype){
     FNAME();
     double exptime = im->exptime;
     uint64_t exp100us = exptime * 10000.;
-    uint8_t cmd[6] = {CMD_TAKE_IMAGE};
+    static uint8_t cmd[6] = {CMD_TAKE_IMAGE}; // `static` to save all data after first call
     int binning = im->binning;
     image_type it = IMTYPE_AUTODARK;
+    const char *m = "autodark";
     if(exptime < 5e-5){// 50us
-        WARNX(_("Exposition time should be not less than 1us"));
+        WARNX(_("Exposition time should be not less than 50us"));
         return 1;
     }
     DBG("exp: %lu", exp100us);
@@ -503,21 +501,25 @@ int start_exposition(imstorage *im, char *imtype){
     }else b = "subframe";
     cmd[4] = binning;
     // and now check image type
-    if(!imtype) return 4;
-    int L = strlen(imtype);
-    if(!L){ WARNX(_("Empty image type")); return 4;}
-    const char *m = "autodark";
-    if(0 == strncasecmp(imtype, "autodark", L)){
-        if(binning == 0){
-            WARNX(_("Auto dark mode don't support full image"));
-            return 5;
+    if(imtype){
+        int L = strlen(imtype);
+        if(!L){ WARNX(_("Empty image type")); return 4;}
+        if(0 == strncasecmp(imtype, "autodark", L)){
+            if(binning == 0){
+                WARNX(_("Auto dark mode don't support full image"));
+                return 5;
+            }
+            cmd[5] = 2;}
+        else if(0 == strncasecmp(imtype, "dark", L)) { cmd[5] = 0; m = "dark";  it = IMTYPE_DARK; }
+        else if(0 == strncasecmp(imtype, "light", L)){ cmd[5] = 1; m = "light"; it = IMTYPE_LIGHT;}
+        else{
+            WARNX(_("Wrong image type: %s, should be \"autodark\", \"light\" or \"dark\""), imtype);
+            return 6;
         }
-        cmd[5] = 2;}
-    else if(0 == strncasecmp(imtype, "dark", L)) { cmd[5] = 0; m = "dark";  it = IMTYPE_DARK; }
-    else if(0 == strncasecmp(imtype, "light", L)){ cmd[5] = 1; m = "light"; it = IMTYPE_LIGHT;}
-    else{
-        WARNX(_("Wrong image type: %s, should be \"autodark\", \"light\" or \"dark\""), imtype);
-        return 6;
+    }else{
+        it = im->imtype;
+        if(it == IMTYPE_DARK) m = "dark";
+        else if(it == IMTYPE_LIGHT) m = "light";
     }
     if(it != IMTYPE_DARK){
         if(shutter_command("ok")){ // open shutter
@@ -548,6 +550,7 @@ int start_exposition(imstorage *im, char *imtype){
         break;
         case 0xff: // subframe
             W = H = im->subframe->size;
+            DBG("subfrsz: %d", im->subframe->size);
         break;
         case 0: // full image
         default:
@@ -555,6 +558,7 @@ int start_exposition(imstorage *im, char *imtype){
             H = IMHEIGHT;
     }
     im->W = W; im->H = H;
+    DBG("W=%zd, H=%zd\n", im->W, im->H);
     im->exposetime = time(NULL);
     return 0;
 }
@@ -608,7 +612,8 @@ int wait4image(){
  */
 uint16_t *get_image(imstorage *img){
     char *iptr = indi;
-    size_t L = img->W * img->H, rest = L * 2; // rest is datasize in bytes
+    size_t L = img->W * img->H, rest = L * sizeof(uint16_t); // rest is datasize in bytes
+    DBG("L = %zd, W=%zd, H=%zd", L, img->W, img->H);
     uint16_t *buff = MALLOC(uint16_t, L);
     if(TRANS_SUCCEED != send_cmd_cs(CMD_XFER_IMAGE)){
         WARNX(_("Error sending transfer command"));
@@ -681,8 +686,8 @@ uint16_t *get_image(imstorage *img){
             download_in_progress = 0;
             return NULL;
         }
-        //DBG("portion %d", ++i);
         rest -= need - 1;
+        //DBG("need: %zd", need);
         bptr = ptr;
     }while(rest);
     printf("\b Done!\n");
@@ -690,3 +695,6 @@ uint16_t *get_image(imstorage *img){
     download_in_progress = 0;
     return buff;
 }
+
+
+#endif // CLIENT

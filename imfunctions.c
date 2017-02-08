@@ -32,6 +32,8 @@
 #include <libgen.h>  // basename
 #include <sys/stat.h> // utimensat
 #include <fcntl.h>   // AT_...
+
+double exp_calculated = -1.; // optimal exposition, calculated in histogram saver
 /**
  * All image-storing functions modify ctime of saved files to be the time of
  * exposition start!
@@ -144,7 +146,7 @@ imstorage *chk_storeimg(char *filename, char* store, char *format){
     for(size_t i = 0; i < FMTSZ; ++i){
         if(!(formats[i] & fmt)) continue;
         if(!make_filename(nm, suffixes[i], st)){
-            WARNX(_("Can't create output file"));
+            WARNX(_("Can't create output file (is it exists?)"));
             free(nm);
             return NULL;
         }
@@ -334,7 +336,7 @@ int writefits(imstorage *img){
     return 0;
 }
 
-
+#ifndef CLIENT
 /**
  * Receive image data & fill img->imdata
  * @return imdata or NULL if failed
@@ -350,13 +352,14 @@ uint16_t *get_imdata(imstorage *img){
     img->imdata = imdata;
     return imdata;
 }
+#endif
 
 /**
  * save truncated to 256 levels histogram of `img` into file `f`
  * @return 0 if all OK
  */
 int save_histo(FILE *f, imstorage *img){
-    if(!img->imdata) return 1000;
+    if(!img || !img->imdata) return 1000;
     size_t histogram[256];
     size_t l, S = img->W*img->H;
     uint16_t *ptr = img->imdata;
@@ -364,10 +367,12 @@ int save_histo(FILE *f, imstorage *img){
     for(l = 0; l < S; ++l, ++ptr){
         ++histogram[((*ptr)>>8)&0xff];
     }
-    for(l = 0; l < 256; ++l){
-        int status = fprintf(f, "%zd\t%zd\n", l, histogram[l]);
-        if(status < 0){
-            return status;
+    if(f){
+        for(l = 0; l < 256; ++l){
+            int status = fprintf(f, "%zd\t%zd\n", l, histogram[l]);
+            if(status < 0){
+                return status;
+            }
         }
     }
     size_t low2 = S/50, med = S/2, up2 = (S*49)/50, acc = 0;
@@ -375,21 +380,29 @@ int save_histo(FILE *f, imstorage *img){
     for(l = 0; l < 256; ++l){ // get stat parameters
         acc += histogram[l];
         if(lval < 0 && acc >= low2) lval = l;
-        else if(mval < 0 && acc >= med) mval = l;
-        else if(tval < 0 && acc >= up2) tval = l;
+        if(mval < 0 && acc >= med) mval = l;
+        if(tval < 0 && acc >= up2) tval = l;
     }
+    DBG("acc = %zd, S = %zd", acc, S);
     printf("low 2%% (%zd pixels) = %d, median (%zd pixels) = %d, up 2%% (%zd pixels) = %d\n",
         low2, lval, med, mval, up2, tval);
     double mul = 1., mulmax = 255. / tval;
-    if(mval < 120 || mval > 134){
-        if(lval > 32) mul = 96. / mval;
-        else if(mval < 127) mul = 120. / mval;
-        else if(mval < 196) mul = 120. / (mval - lval);
-        else if(mval < 245) mul = 96. / (tval - lval);
-        else mval = 0.03;
+    if(tval <= 252){ // no overexposed pixels
+        if(lval < 32){ // narrow histogram with overexposed black level
+            mul = 252. / tval;
+        }else mul = 32. / lval;
+    }else{
+        if(mval > 134){
+            if(mval < 245) mul = 64. / mval;
+            else mul = 0.1;
+        }
     }
     if(mul > mulmax) mul = mulmax;
-    green("Recommended exposition time: %.2f seconds\n", img->exptime * mul);
+    double E = img->exptime * mul;
+    if(E < 5e-5) E = 5e-5; // too short exposition
+    else if(E > 120.) E = 120.; // no need to do expositions larger than 2 minutes
+    green("Recommended exposition time: %g seconds\n", E);
+    exp_calculated = E;
     return 0;
 }
 
@@ -436,7 +449,11 @@ int writedump(imstorage *img){
  */
 int store_image(imstorage *img){
     int status = 0;
-    if(!img->imdata && !get_imdata(img)) return 1;
+    if((!img->imdata
+    #ifndef CLIENT
+        && !get_imdata(img)
+    #endif
+       ) || !img->W || !img->H) return 1;
     print_stat(img);
     if(img->imformat & FORMAT_TIFF){ // save tiff file
         if(writetiff(img)) status |= 1;

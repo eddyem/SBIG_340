@@ -80,7 +80,6 @@ typedef enum{
 #define     ANS_EXP_DONE            'D'
 
 void run_terminal();
-void daemonize();
 int open_serial(char *dev);
 int get_curspeed();
 int try_connect(char *device, int speed);

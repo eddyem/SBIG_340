@@ -68,9 +68,14 @@ typedef struct{
     time_t exposetime; // time of exposition start
 } imstorage;
 
+extern double exp_calculated;
+
 imstorage *chk_storeimg(char *filename, char* store, char *format);
 int store_image(imstorage *filename);
 void print_stat(imstorage *img);
+#ifndef CLIENT
 uint16_t *get_imdata(imstorage *img);
+#endif
+int save_histo(FILE *f, imstorage *img);
 
 #endif // __IMFUNCTIONS_H__

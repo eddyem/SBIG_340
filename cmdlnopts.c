@@ -32,13 +32,10 @@
 int help;
 glob_pars  G;
 
-int rewrite_ifexists = 0, // rewrite existing files == 0 or 1
-    verbose = 0; // each -v increments this value, e.g. -vvv sets it to 3
 #define DEFAULT_COMDEV  "/dev/ttyUSB0"
 //            DEFAULTS
 // default global parameters
 glob_pars const Gdefault = {
-    .daemon = 0,
     .terminal = 0,
     .heater = HEATER_LEAVE,
     .device = DEFAULT_COMDEV,
@@ -56,6 +53,8 @@ glob_pars const Gdefault = {
     .imformat = NULL,
     .imstoretype = NULL,
     .outpfname = "output.tiff",
+    .hostname = "localhost",
+    .port = "4444"
 };
 
 /*
@@ -63,10 +62,22 @@ glob_pars const Gdefault = {
  *  name        has_arg     flag    val     type        argptr              help
 */
 myoption cmdlnopts[] = {
-    // set 1 to param despite of its repeating number:
+// common options
     {"help",    NO_ARGS,    NULL,   'h',    arg_int,    APTR(&help),        _("show this help")},
-    {"daemon",  NO_ARGS,    NULL,   'd',    arg_int,    APTR(&G.daemon),    _("run as daemon")},
+// only standalone options
+#if !defined DAEMON && !defined CLIENT
+    {"imtype",  NEED_ARG,   NULL,   'T',    arg_string, APTR(&G.imtype),    _("image type: light (l, L), autodark (a, A), dark (d, D); default: light")},
     {"terminal",NO_ARGS,    NULL,   't',    arg_int,    APTR(&G.terminal),  _("run as terminal")},
+    {"start-exp",NO_ARGS,   NULL,   'X',    arg_int,    APTR(&G.takeimg),   _("start exposition")},
+#endif
+// not daemon options
+#ifndef DAEMON
+    {"storetype",NEED_ARG,  NULL,   'S',    arg_string, APTR(&G.imstoretype),_("'overwrite'/'rewrite' to rewrite existing image, 'enumerate'/'numerate' to use given filename as base for series")},
+    {"output",  NEED_ARG,   NULL,   'o',    arg_string, APTR(&G.outpfname), _("output file name (default: output.tiff)")},
+    {"imformat",NEED_ARG,   NULL,   'f',    arg_string, APTR(&G.imformat),  _("image format: FITS (f), TIFF (t), raw dump with histogram storage (r,d), may be OR'ed; default: FITS or based on output image name")},
+#endif
+// not client options
+#ifndef CLIENT
     {"device",  NEED_ARG,   NULL,   'i',    arg_string, APTR(&G.device),    _("serial device name (default: " DEFAULT_COMDEV ")")},
     {"heater-on",NO_ARGS,   APTR(&G.heater),HEATER_ON,  arg_none, NULL,     _("turn heater on")},
     {"heater-off",NO_ARGS,  APTR(&G.heater),HEATER_OFF, arg_none, NULL,     _("turn heater off")},
@@ -77,12 +88,14 @@ myoption cmdlnopts[] = {
     {"subframe",NEED_ARG,   NULL,   0,      arg_string, APTR(&G.subframe),  _("select subframe: x,y,size")},
     {"exptime", NEED_ARG,   NULL,   'x',    arg_double, APTR(&G.exptime),   _("exposition time in seconds (default: 1s)")},
     {"binning", NEED_ARG,   NULL,   'B',    arg_int,    APTR(&G.binning),   _("binning (default 0: full size)")},
-    {"start-exp",NO_ARGS,   NULL,   'X',    arg_int,    APTR(&G.takeimg),   _("start exposition")},
-    {"imtype",  NEED_ARG,   NULL,   'T',    arg_string, APTR(&G.imtype),    _("image type: light (l, L), autodark (a, A), dark (d, D); default: light")},
-    {"storetype",NEED_ARG,  NULL,   'S',    arg_string, APTR(&G.imstoretype),_("'overwrite'/'rewrite' to rewrite existing image, 'enumerate'/'numerate' to use given filename as base for series")},
-    {"output",  NEED_ARG,   NULL,   'o',    arg_string, APTR(&G.outpfname), _("output file name (default: output.tiff)")},
-    {"imformat",NEED_ARG,   NULL,   'f',    arg_string, APTR(&G.imformat),  _("image format: FITS (f), TIFF (t), raw dump with histogram storage (r,d), may be OR'ed; default: FITS or based on output image name")},
-    // simple integer parameter with obligatory arg:
+#endif
+// not standalone options
+#if defined DAEMON || defined CLIENT
+#ifndef DAEMON
+    {"hostname",NEED_ARG,   NULL,   'H',    arg_string, APTR(&G.hostname),  _("hostname to connect (default: localhost)")},
+#endif
+    {"port",    NEED_ARG,   NULL,   'p',    arg_string, APTR(&G.port),      _("port to connect (default: 4444)")},
+#endif
    end_option
 };
 

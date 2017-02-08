@@ -26,15 +26,20 @@ long_line_behaviour=1
 long_line_column=100
 
 [files]
-current_page=0
-FILE_NAME_0=240;Make;0;EUTF-8;1;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2FMakefile;0;4
-FILE_NAME_1=1333;C;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fmain.c;0;4
-FILE_NAME_2=5126;C;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fterm.c;0;4
-FILE_NAME_3=0;C;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fterm.h;0;4
-FILE_NAME_4=0;C;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fcmdlnopts.c;0;4
-FILE_NAME_5=0;C;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fcmdlnopts.h;0;4
-FILE_NAME_6=1494;Make;0;EUTF-8;1;1;0;%2Fhome%2Feddy%2FDropbox%2FProjects%2Fstm32samples%2FF0-nolib%2Fblink%2FMakefile;0;4
-FILE_NAME_7=4569;C;0;EKOI8-R;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fusefull_macros.c;0;4
+current_page=12
+FILE_NAME_0=684;Make;0;EUTF-8;1;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2FMakefile;0;4
+FILE_NAME_1=1058;C;0;EKOI8-R;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fmain.c;0;4
+FILE_NAME_2=3665;C;0;EKOI8-R;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fcmdlnopts.c;0;4
+FILE_NAME_3=2158;C;0;EKOI8-R;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fcmdlnopts.h;0;4
+FILE_NAME_4=2541;C;0;EKOI8-R;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fterm.c;0;4
+FILE_NAME_5=3090;C;0;EKOI8-R;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fterm.h;0;4
+FILE_NAME_6=2204;C;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fimfunctions.h;0;4
+FILE_NAME_7=14598;C;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Fimfunctions.c;0;4
+FILE_NAME_8=736;C++;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2Fdemosaic%2Fsrc%2Fio_tiff.cpp;0;4
+FILE_NAME_9=959;C;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2Fdemosaic%2Fsrc%2Fio_tiff.h;0;4
+FILE_NAME_10=4748;C++;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2Fdemosaic%2Fsrc%2FdemosaickingIpol.cpp;0;4
+FILE_NAME_11=1322;C;0;EUTF-8;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2Ftestimages%2Finotify.c;0;4
+FILE_NAME_12=67;Markdown;0;EKOI8-R;0;1;0;%2Fhome%2Feddy%2FDocs%2FSAO%2FCameras%2FSBIG%2Fallsky_340%2FSBIG_340%2FReadme.md;0;4
 
 [VTE]
 last_dir=/home/eddy/Docs/SAO/Cameras/FLI_camera/my/Mytakepic
