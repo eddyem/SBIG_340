@@ -111,6 +111,10 @@ int main(int argc, char **argv){
         run_terminal(); // non-echo terminal mode
     }
 #endif // !defined DAEMON && !defined CLIENT
+#ifdef CLIENT
+    img->once = G->once;
+    img->timestamp = G->timestamp;
+#endif
 #if defined CLIENT || defined DAEMON
     daemonize(img, G->hostname, G->port);
 #endif

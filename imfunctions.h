@@ -66,6 +66,8 @@ typedef struct{
     size_t W, H;       // image size
     uint16_t *imdata;  // image data itself
     time_t exposetime; // time of exposition start
+    int timestamp; // add timestamp to filename
+    int once; // get only one image
 } imstorage;
 
 extern double exp_calculated;

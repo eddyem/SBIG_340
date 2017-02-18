@@ -25,10 +25,12 @@
 #include "imfunctions.h"
 #include "term.h"
 #include <strings.h> // strncasecmp
-#include <tiffio.h>  // save tiff
 #include <math.h>    // sqrt
 #include <time.h>    // time, gmtime etc
+#ifndef DAEMON
 #include <fitsio.h>  // save fits
+#include <tiffio.h>  // save tiff
+#endif
 #include <libgen.h>  // basename
 #include <sys/stat.h> // utimensat
 #include <fcntl.h>   // AT_...
@@ -38,7 +40,8 @@ double exp_calculated = -1.; // optimal exposition, calculated in histogram save
  * All image-storing functions modify ctime of saved files to be the time of
  * exposition start!
  */
-
+#ifndef DAEMON
+#include <time.h>
 void modifytimestamp(char *filename, imstorage *img){
     if(!filename) return;
     struct timespec times[2];
@@ -58,9 +61,19 @@ void modifytimestamp(char *filename, imstorage *img){
  * make filename for given name, suffix and storage type
  * @return filename or NULL if can't create it
  */
-static char *make_filename(const char *outfile, const char *suff, store_type st){
+static char *make_filename(imstorage *img, const char *suff){
     struct stat filestat;
     static char buff[FILENAME_MAX];
+    store_type st = img->st;
+    char fnbuf[FILENAME_MAX], *outfile = img->imname;
+    if(img->timestamp){
+        struct tm *stm = localtime(&img->exposetime);
+        // add timestamp as YYYY-MM-DD_hh:mm:ss
+        snprintf(fnbuf, FILENAME_MAX, "%s_%04d-%02d-%02d_%02d:%02d:%02d", outfile,
+            1900+stm->tm_year, 1+stm->tm_mon, stm->tm_mday,
+            stm->tm_hour, stm->tm_min, stm->tm_sec);
+        outfile = fnbuf;
+    }
     if(st == STORE_NORMAL || st == STORE_REWRITE){
         snprintf(buff, FILENAME_MAX, "%s.%s", outfile, suff);
         if(stat(buff, &filestat)){
@@ -143,18 +156,20 @@ imstorage *chk_storeimg(char *filename, char* store, char *format){
     #define FMTSZ (3)
     image_format formats[FMTSZ] = {FORMAT_FITS, FORMAT_TIFF, FORMAT_RAW};
     const char *suffixes[FMTSZ] = {SUFFIX_FITS, SUFFIX_TIFF, SUFFIX_RAW};
-    for(size_t i = 0; i < FMTSZ; ++i){
-        if(!(formats[i] & fmt)) continue;
-        if(!make_filename(nm, suffixes[i], st)){
-            WARNX(_("Can't create output file (is it exists?)"));
-            free(nm);
-            return NULL;
-        }
-    }
     imstorage *ist = MALLOC(imstorage, 1);
     ist->st = st;
     ist->imformat = fmt;
     ist->imname = strdup(nm);
+    for(size_t i = 0; i < FMTSZ; ++i){
+        if(!(formats[i] & fmt)) continue;
+        if(!make_filename(ist, suffixes[i])){
+            WARNX(_("Can't create output file (is it exists?)"));
+            free(nm);
+            free(ist->imname);
+            free(ist);
+            return NULL;
+        }
+    }
     return ist;
 }
 
@@ -165,7 +180,7 @@ imstorage *chk_storeimg(char *filename, char* store, char *format){
 int writetiff(imstorage *img){
     int H = img->H, W = img->W, y;
     uint16_t *data = img->imdata;
-    char *name = make_filename(img->imname, SUFFIX_TIFF, img->st);
+    char *name = make_filename(img, SUFFIX_TIFF);
     TIFF *image = NULL;
     if(!name || !(image = TIFFOpen(name, "w"))){
         WARN("Can't save tiff file");
@@ -195,6 +210,7 @@ int writetiff(imstorage *img){
     modifytimestamp(name, img);
     return 0;
 }
+#endif
 
 /**
  * Calculate image statistics: print it on screen and save for `writefits`
@@ -243,6 +259,7 @@ void print_stat(imstorage *img){
     printf("At 3sigma: Noverload = %ld, avr = %.3f, std = %.3f\n", Noverld, avr, std);
 }
 
+#ifndef DAEMON
 #define TRYFITS(f, ...)                     \
 do{ int status = 0;                         \
     f(__VA_ARGS__, &status);                \
@@ -260,7 +277,7 @@ int writefits(imstorage *img){
     long naxes[2] = {img->W, img->H};
     char buf[80];
     fitsfile *fp;
-    char *filename = make_filename(img->imname, SUFFIX_FITS, img->st);
+    char *filename = make_filename(img, SUFFIX_FITS);
     TRYFITS(fits_create_file, &fp, filename);
     TRYFITS(fits_create_img, fp, USHORT_IMG, 2, naxes);
     // FILE / Input file original name
@@ -293,9 +310,9 @@ int writefits(imstorage *img){
     WRITEKEY(TSTRING, "IMAGETYP", buf, "Image type");
     // DATAMAX, DATAMIN / Max,min pixel value
     uint16_t val = UINT16_MAX;
-    WRITEKEY(TUSHORT, "DATAMAX", &val, "Max pixel value");
+    WRITEKEY(TUSHORT, "DATAMAX", &val, "Max possible pixel value");
     val = 0;
-    WRITEKEY(TUSHORT, "DATAMIN", &val, "Min pixel value");
+    WRITEKEY(TUSHORT, "DATAMIN", &val, "Min possible pixel value");
     // statistical values
     WRITEKEY(TUSHORT, "STATMAX", &glob_max, "Max pixel value");
     WRITEKEY(TUSHORT, "STATMIN", &glob_min, "Min pixel value");
@@ -335,6 +352,7 @@ int writefits(imstorage *img){
     green(_("Image %s saved\n"), filename);
     return 0;
 }
+#endif
 
 #ifndef CLIENT
 /**
@@ -406,8 +424,9 @@ int save_histo(FILE *f, imstorage *img){
     return 0;
 }
 
+#ifndef DAEMON
 int writedump(imstorage *img){
-    char *name = make_filename(img->imname, SUFFIX_RAW, img->st);
+    char *name = make_filename(img, SUFFIX_RAW);
     if(!name) return 1;
     int f = open(name, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if(f){
@@ -423,7 +442,7 @@ int writedump(imstorage *img){
         return 3;
     }
     modifytimestamp(name, img);
-    name = make_filename(img->imname, "histogram.txt", img->st);
+    name = make_filename(img, "histogram.txt");
     if(!name) return 4;
     FILE *h = fopen(name, "w");
     if(!h) return 5;
@@ -466,3 +485,4 @@ int store_image(imstorage *img){
     }
     return status;
 }
+#endif

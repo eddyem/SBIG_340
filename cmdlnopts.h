@@ -35,6 +35,8 @@ typedef struct{
     int rest_pars_num;      // number of rest parameters
     heater_cmd heater;      // turn heater on/off/leave unchanged
     int splist;             // list speeds available
+    int once;               // run once (client)
+    int timestamp;          // add timestamp
     int newspeed;           // change speed
     int speed;              // connect @ this speed
     char *shutter_cmd;      // shutter command: 'o' for open, 'c' for close, 'k' for de-energize

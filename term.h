@@ -41,7 +41,7 @@ typedef enum{
 } heater_cmd;
 
 // terminal timeout (seconds)
-#define     WAIT_TMOUT      (0.1)
+#define     WAIT_TMOUT      (0.2)
 // timeout waitint 'D'
 #define     EXP_DONE_TMOUT  (5.0)
 // dataportion transfer timeout

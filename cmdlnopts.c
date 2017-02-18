@@ -53,8 +53,10 @@ glob_pars const Gdefault = {
     .imformat = NULL,
     .imstoretype = NULL,
     .outpfname = "output.tiff",
-    .hostname = "localhost",
-    .port = "4444"
+    .hostname = NULL,
+    .port = "4444",
+    .once = 0,
+    .timestamp = 0,
 };
 
 /*
@@ -93,6 +95,8 @@ myoption cmdlnopts[] = {
 #if defined DAEMON || defined CLIENT
 #ifndef DAEMON
     {"hostname",NEED_ARG,   NULL,   'H',    arg_string, APTR(&G.hostname),  _("hostname to connect (default: localhost)")},
+    {"once",    NO_ARGS,    NULL,   '1',    arg_int,    APTR(&G.once),      _("run client just once")},
+    {"timestamp",NO_ARGS,   NULL,   't',    arg_int,    APTR(&G.timestamp), _("add timestamp to filename")},
 #endif
     {"port",    NEED_ARG,   NULL,   'p',    arg_string, APTR(&G.port),      _("port to connect (default: 4444)")},
 #endif

@@ -31,6 +31,9 @@
 #include <pthread.h>
 #include <limits.h>     // INT_xxx
 #include <signal.h> // pthread_kill
+#include <unistd.h> // daemon
+#include <sys/wait.h> // wait
+#include <sys/prctl.h> //prctl
 
 #define BUFLEN    (10240)
 #define BUFLEN10  (1048576)
@@ -396,6 +399,7 @@ static void client_(imstorage *img, int sock){
             if(store_image(img))
                 WARNX(_("Error storing image"));
         }
+        if(img->once) break;
     }
 }
 #endif
@@ -405,8 +409,9 @@ static void client_(imstorage *img, int sock){
  */
 void daemonize(imstorage *img, char *hostname, char *port){
     FNAME();
-    green("Daemonize\n");
 #ifndef EBUG
+    if(!img->once){
+    green("Daemonize\n");
     if(daemon(1, 0)){
         ERR("daemon()");
     }
@@ -421,7 +426,7 @@ void daemonize(imstorage *img, char *hostname, char *port){
             prctl(PR_SET_PDEATHSIG, SIGTERM); // send SIGTERM to child when parent dies
             break; // go out to normal functional
         }
-    }
+    }}
 #endif
     int sock = -1;
     struct addrinfo hints, *res, *p;
