@@ -1,37 +1,46 @@
 # run `make DEF=...` to add extra defines
 LDFLAGS := -fdata-sections -ffunction-sections -Wl,--gc-sections -Wl,--discard-all
 LDFLAGS += -lm -pthread
+LDIMG   := $(shell pkg-config --libs libraw) -lgd $(shell pkg-config --libs cfitsio) -ltiff
 SRCS := $(wildcard *.c)
-#GCC_GE_4_9_3 := $(shell g++ -dumpversion | gawk '{print $$1>=4.9.3?"1":"0"}')
-DEFINES := $(DEF)   -D_XOPEN_SOURCE=1111
-#ifeq ($(GCC_GE_4_9_3),1)
-    DEFINES += -D_DEFAULT_SOURCE
-#else
-#	DEFINES += -D_BSD_SOURCE
-#endif
+DEFINES := $(DEF) -D_GNU_SOURCE  -D_XOPEN_SOURCE=1111
 #DEFINES += -DEBUG
-CFLAGS += -Wall -Wextra -O2 -std=gnu99
-CC = gcc
+CFLAGS += -Wall -Wextra -O2
+CFLAGS += $(shell pkg-config --cflags libraw)
+OBJS := $(SRCS:%.c=%.o)
+CC  = gcc
+CPP = g++
 
 all : sbig340 daemon client
 
-sbig340 : $(SRCS)
-	@echo -e "\t\tLD sbig340"
-	$(CC)  $(CFLAGS) $(DEFINES) $(LDFLAGS) $(shell pkg-config --libs cfitsio) -ltiff  $(SRCS) -o sbig340
+debayer.o : debayer.cpp
+	@echo -e "\t\tG++ debayer"
+	$(CPP) $(CFLAGS) $(DEFINES) debayer.cpp -c
+
+sbig340 : $(SRCS) debayer.o
+	@echo -e "\t\tBuild sbig340"
+	$(CC) -DDAEMON $(CFLAGS) -std=gnu99 $(DEFINES) $(LDFLAGS) $(LDIMG) $(SRCS) -o $@
+
+#	$(CC) -c $(CFLAGS) -std=gnu99 $(DEFINES) $(SRCS)
+#	$(CPP) $(LDFLAGS) $(OBJS) debayer.o -o $@
 
 daemon : $(SRCS)
-	@echo -e "\t\tLD daemon"
-	$(CC) -DDAEMON $(CFLAGS) $(DEFINES) $(LDFLAGS) $(SRCS) -o daemon
+	@echo -e "\t\tBuild daemon"
+	$(CC) -DDAEMON $(CFLAGS) -std=gnu99 $(DEFINES) $(LDFLAGS) $(SRCS) -o $@
 
-client : $(SRCS)
-	@echo -e "\t\tLD client"
-	$(CC) -DCLIENT $(CFLAGS) $(DEFINES) $(LDFLAGS) $(shell pkg-config --libs cfitsio) -ltiff  $(SRCS) -o client
+client : $(SRCS) debayer.o
+	@echo -e "\t\tBuild client"
+	$(CC) -DCLIENT $(CFLAGS) -std=gnu99 $(DEFINES) $(LDFLAGS) $(LDIMG) $(SRCS) debayer.o -o $@
 
 clean:
 	@echo -e "\t\tCLEAN"
+	@rm -f $(OBJS) debayer.o
+
+xclean: clean
+	@echo -e "\t\tRM binaries"
 	@rm -f sbig340 daemon client
 
 gentags:
-	CFLAGS="$(CFLAGS) $(DEFINES)" geany -g $(PROGRAM).c.tags *[hc] 2>/dev/null
+	CFLAGS="$(CFLAGS) $(DEFINES)" geany -g $(PROGRAM).c.tags *[hc] *.cpp 2>/dev/null
 
-.PHONY: gentags clean
+.PHONY: gentags clean xclean

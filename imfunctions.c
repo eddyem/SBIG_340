@@ -28,6 +28,7 @@
 #include <math.h>    // sqrt
 #include <time.h>    // time, gmtime etc
 #ifndef DAEMON
+#include "debayer.h"
 #include <fitsio.h>  // save fits
 #include <tiffio.h>  // save tiff
 #endif
@@ -51,20 +52,16 @@ void modifytimestamp(char *filename, imstorage *img){
     if(utimensat(AT_FDCWD, filename, times, 0)) WARN(_("Can't change timestamp for %s"), filename);
 }
 
-// image type suffixes
-#define SUFFIX_FITS         "fits"
-#define SUFFIX_RAW          "bin"
-#define SUFFIX_TIFF         "tiff"
-
 /**
  * NON THREAD-SAFE!
  * make filename for given name, suffix and storage type
  * @return filename or NULL if can't create it
  */
-static char *make_filename(imstorage *img, const char *suff){
+char *make_filename(imstorage *img, const char *suff){
     struct stat filestat;
     static char buff[FILENAME_MAX];
     store_type st = img->st;
+    DBG("Make filename from %s with suffix %s", img->imname, suff);
     char fnbuf[FILENAME_MAX], *outfile = img->imname;
     if(img->timestamp){
         struct tm *stm = localtime(&img->exposetime);
@@ -107,6 +104,7 @@ static char *make_filename(imstorage *img, const char *suff){
  * Check image to store
  * @param filename (i) - output file name (or prefix with suffix)
  * @param store    (i) - "overwrite" (or "rewrite"), "normal" (or NULL), "enumerate" (or "numerate")
+ * @param format   (i) - image format (ft[rd])
  */
 imstorage *chk_storeimg(char *filename, char* store, char *format){
     FNAME();
@@ -124,6 +122,7 @@ imstorage *chk_storeimg(char *filename, char* store, char *format){
     char *nm = strdup(filename);
     if(!nm) ERRX("strdup");
     char *pt = strrchr(nm, '.');
+    DBG("input format: %s", format);
     image_format fbysuff = FORMAT_NONE;
     // check if name's suffix is filetype
     if(pt){
@@ -151,7 +150,7 @@ imstorage *chk_storeimg(char *filename, char* store, char *format){
         if(fbysuff != FORMAT_NONE) fmt = fbysuff;
         DBG("fmt: %d", fmt);
     }
-
+    DBG("imformat: %d", fmt);
     // now check all names
     #define FMTSZ (3)
     image_format formats[FMTSZ] = {FORMAT_FITS, FORMAT_TIFF, FORMAT_RAW};
@@ -278,6 +277,7 @@ int writefits(imstorage *img){
     char buf[80];
     fitsfile *fp;
     char *filename = make_filename(img, SUFFIX_FITS);
+    if(!filename) return 1;
     TRYFITS(fits_create_file, &fp, filename);
     TRYFITS(fits_create_img, fp, USHORT_IMG, 2, naxes);
     // FILE / Input file original name
@@ -405,9 +405,9 @@ int save_histo(FILE *f, imstorage *img){
     printf("low 2%% (%zd pixels) = %d, median (%zd pixels) = %d, up 2%% (%zd pixels) = %d\n",
         low2, lval, med, mval, up2, tval);
     double mul = 1., mulmax = 255. / tval;
-    if(tval <= 252){ // no overexposed pixels
+    if(tval <= 240){ // no overexposed pixels
         if(lval < 32){ // narrow histogram with overexposed black level
-            mul = 252. / tval;
+            mul = 240. / tval;
         }else mul = 32. / lval;
     }else{
         if(mval > 134){
@@ -418,7 +418,7 @@ int save_histo(FILE *f, imstorage *img){
     if(mul > mulmax) mul = mulmax;
     double E = img->exptime * mul;
     if(E < 5e-5) E = 5e-5; // too short exposition
-    else if(E > 120.) E = 120.; // no need to do expositions larger than 2 minutes
+    else if(E > 300.) E = 300.; // no need to do expositions larger than 5 minutes
     green("Recommended exposition time: %g seconds\n", E);
     exp_calculated = E;
     return 0;
@@ -477,12 +477,13 @@ int store_image(imstorage *img){
     if(img->imformat & FORMAT_TIFF){ // save tiff file
         if(writetiff(img)) status |= 1;
     }
-    if(img->imformat & FORMAT_RAW){
+    if(img->imformat & FORMAT_RAW){ // save RAW dump & truncated histogram
         if(writedump(img)) status |= 2;
     }
-    if(img->imformat & FORMAT_FITS){ // not supported yet
+    if(img->imformat & FORMAT_FITS){ // save FITS
         if(writefits(img)) status |= 4;
     }
+    if(write_debayer(img, glob_min)) status |= 8; // and save colour image
     return status;
 }
 #endif

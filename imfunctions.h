@@ -72,6 +72,13 @@ typedef struct{
 
 extern double exp_calculated;
 
+// image type suffixes
+#define SUFFIX_FITS         "fits.gz"
+#define SUFFIX_RAW          "bin"
+#define SUFFIX_TIFF         "tiff"
+#define SUFFIX_JPEG         "jpg"
+
+char *make_filename(imstorage *img, const char *suff);
 imstorage *chk_storeimg(char *filename, char* store, char *format);
 int store_image(imstorage *filename);
 void print_stat(imstorage *img);

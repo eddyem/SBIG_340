@@ -80,6 +80,7 @@ int main(int argc, char **argv){
 #endif // !CLIENT
 #ifndef DAEMON
         img = chk_storeimg(G->outpfname, G->imstoretype, G->imformat);
+        if(!img) return 1;
 #else
         img = MALLOC(imstorage, 1); // just allocate empty: all we need in daemon is exposition & binning
 #endif

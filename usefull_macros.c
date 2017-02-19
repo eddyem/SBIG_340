@@ -333,7 +333,7 @@ size_t read_tty(uint8_t *buff, size_t length){
     int retval;
     FD_ZERO(&rfds);
     FD_SET(comfd, &rfds);
-    tv.tv_sec = 0; tv.tv_usec = 500000; // wait for 500ms max
+    tv.tv_sec = 0; tv.tv_usec = 500000; // wait for 500ms
     retval = select(comfd + 1, &rfds, NULL, NULL, &tv);
     if (!retval) return 0;
     if(FD_ISSET(comfd, &rfds)){
