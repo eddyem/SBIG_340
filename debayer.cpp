@@ -68,7 +68,13 @@ static int write_jpeg(const char *fname, const uint8_t *data, imstorage *img){
  * @return 0 if all OK
  */
 int write_debayer(imstorage *img, uint16_t black){
+    int ts = img->timestamp;
+    store_type st = img->st;
+    img->timestamp = 0;
+    img->st = STORE_REWRITE;
     char *name = make_filename(img, SUFFIX_JPEG);
+    img->timestamp = ts;
+    img->st = st;
     if(!name) return 1;
     int r = 0;
     size_t fsz = img->W * img->H * sizeof(uint16_t);
