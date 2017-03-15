@@ -99,7 +99,7 @@ trans_status wait_checksum(){
     double d0 = dtime();
     do{
         if((r = read_tty(&chr, 1)) && chr == last_chksum) break;
-        DBG("wait..");
+        //DBG("wait..");
     }while(dtime() - d0 < WAIT_TMOUT);
     if(dtime() - d0 >= WAIT_TMOUT) return TRANS_TIMEOUT;
     DBG("chksum: got 0x%x, need 0x%x", chr, last_chksum);
@@ -308,7 +308,7 @@ void run_terminal(){
     setup_con();
     while(1){
         if((L = read_tty(buf, BUFLEN))){
-            printf(_("Get data: "));
+            printf(_("Get %zd bytes: "), L);
             uint8_t *ptr = buf;
             while(L--){
                 uint8_t c = *ptr++;
@@ -640,8 +640,8 @@ uint16_t *get_image(imstorage *img){
                     l -= r;
                 }
             }while(l && dtime() - d0 < IMTRANS_TMOUT);
-            //DBG("got: %zd", got);
-            if(got < 3){
+            //DBG("got: %zd, time: %g, l=%zd", got, dtime()-d0, l);
+            if(l){
                 cs = IMTRANS_STOP;
                 write_tty(&cs, 1);
                 return NULL; // nothing to read

@@ -23,6 +23,20 @@
 #define __TERM_H__
 #include "imfunctions.h"
 
+// terminal timeout (seconds)
+#define     WAIT_TMOUT      (0.2)
+// timeout waitint 'D'
+#define     EXP_DONE_TMOUT  (5.0)
+// dataportion transfer timeout
+#define     IMTRANS_TMOUT   (3.0)
+// image size
+#define     IMWIDTH         (640)
+#define     IM_CROPWIDTH    (512)
+#define     IMHEIGHT        (480)
+#define     MAX_SUBFRAME_SZ (127)
+// maximal expposition time in 100th of us
+#define     MAX_EXPTIME_100 ((uint64_t)0x63ffff)
+
 // communication errors
 typedef enum{
     TRANS_SUCCEED = 0,  // no errors
@@ -40,19 +54,6 @@ typedef enum{
     HEATER_OFF          // turn off
 } heater_cmd;
 
-// terminal timeout (seconds)
-#define     WAIT_TMOUT      (0.2)
-// timeout waitint 'D'
-#define     EXP_DONE_TMOUT  (5.0)
-// dataportion transfer timeout
-#define     IMTRANS_TMOUT   (1.0)
-// image size
-#define     IMWIDTH         (640)
-#define     IM_CROPWIDTH    (512)
-#define     IMHEIGHT        (480)
-#define     MAX_SUBFRAME_SZ (127)
-// maximal expposition time in 100th of us
-#define     MAX_EXPTIME_100 ((uint64_t)0x63ffff)
 /******************************** Commands definition ********************************/
 // communications test
 #define     CMD_COMM_TEST           'E'

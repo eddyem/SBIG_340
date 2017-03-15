@@ -56,7 +56,10 @@ int main(int argc, char **argv){
     imsubframe *F = NULL;
 
 #ifndef CLIENT
-    if(G->splist) list_speeds();
+    if(G->splist){
+        list_speeds();
+        return 0;
+    }
     if(!try_connect(G->device, G->speed)){
         WARNX(_("Check power and connection: device not answer!"));
         return 1;
@@ -92,7 +95,7 @@ int main(int argc, char **argv){
             img->binning = G->binning;
 
             if(start_exposition(img, G->imtype)){ // start test exposition even in daemon
-                WARNX(_("Error starting exposition"));
+                ERRX(_("Error starting exposition"));
             }else{
                 if(!get_imdata(img)){
                     WARNX(_("Error image transfer"));

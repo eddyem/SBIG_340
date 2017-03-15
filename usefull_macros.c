@@ -294,16 +294,24 @@ void tty_init(char *comdev, tcflag_t speed){
             signals(11);
         }
         DBG("Open port...");
-        if ((comfd = open(comdev,O_RDWR|O_NOCTTY|O_NONBLOCK)) < 0){
-            WARN("Can't use port %s\n",comdev);
-            ioctl(comfd, TCSANOW, &oldtty); // return TTY to previous state
-            close(comfd);
-            signals(2); // quit?
+        do{
+            comfd = open(comdev,O_RDWR|O_NOCTTY|O_NONBLOCK);
+        }while (comfd == -1 && errno == EINTR);
+        if(comfd < 0){
+            WARN(_("Can't open port %s"),comdev);
+            signals(2);
         }
-        DBG("OK\nGet current settings...");
-        if(ioctl(comfd,TCGETA,&oldtty) < 0){  // Get settings
+    /*    DBG("OK\nGet current settings...");
+        if(ioctl(comfd, TCGETA, &oldtty) < 0){  // Get settings
             /// "Не могу получить настройки"
             WARN(_("Can't get settings"));
+            signals(2);
+        }*/
+        DBG("Make exclusive");
+        // make exclusive open
+        if(ioctl(comfd, TIOCEXCL)){
+            WARN(_("Can't do exclusive open"));
+            close(comfd);
             signals(2);
         }
     }
@@ -327,13 +335,14 @@ void tty_init(char *comdev, tcflag_t speed){
  * @return amount of readed bytes
  */
 size_t read_tty(uint8_t *buff, size_t length){
+    if(comfd < 0) return 0;
     ssize_t L = 0;
     fd_set rfds;
     struct timeval tv;
     int retval;
     FD_ZERO(&rfds);
     FD_SET(comfd, &rfds);
-    tv.tv_sec = 0; tv.tv_usec = 500000; // wait for 500ms
+    tv.tv_sec = 0; tv.tv_usec = 50000; // wait for 50ms
     retval = select(comfd + 1, &rfds, NULL, NULL, &tv);
     if (!retval) return 0;
     if(FD_ISSET(comfd, &rfds)){
@@ -343,6 +352,7 @@ size_t read_tty(uint8_t *buff, size_t length){
 }
 
 int write_tty(const uint8_t *buff, size_t length){
+    if(comfd < 0) return 1;
     ssize_t L = write(comfd, buff, length);
     if((size_t)L != length){
         /// "Ошибка записи!"

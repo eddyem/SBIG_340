@@ -19,7 +19,7 @@ debayer.o : debayer.cpp
 
 sbig340 : $(SRCS) debayer.o
 	@echo -e "\t\tBuild sbig340"
-	$(CC) -DDAEMON $(CFLAGS) -std=gnu99 $(DEFINES) $(LDFLAGS) $(LDIMG) $(SRCS) -o $@
+	$(CC) $(CFLAGS) -std=gnu99 $(DEFINES) $(LDFLAGS) $(LDIMG) $(SRCS) debayer.o -o $@
 
 #	$(CC) -c $(CFLAGS) -std=gnu99 $(DEFINES) $(SRCS)
 #	$(CPP) $(LDFLAGS) $(OBJS) debayer.o -o $@

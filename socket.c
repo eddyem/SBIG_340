@@ -172,6 +172,8 @@ int send_ima(int sock, int webquery){
         return 0;
     }
     rest -= imS;
+    // send data
+    size_t send = BUFLEN10 - rest;
     // OK buffer ready, prepare to send it
     if(webquery){
         Len = snprintf((char*)obuff, BUFLEN,
@@ -179,7 +181,7 @@ int send_ima(int sock, int webquery){
             "Access-Control-Allow-Origin: *\r\n"
             "Access-Control-Allow-Methods: GET, POST\r\n"
             "Access-Control-Allow-Credentials: true\r\n"
-            "Content-type: multipart/form-data\r\nContent-Length: %zd\r\n\r\n", Len);
+            "Content-type: multipart/form-data\r\nContent-Length: %zd\r\n\r\n", send);
         if(Len < 0){
             WARN("sprintf()");
             return 0;
@@ -190,8 +192,6 @@ int send_ima(int sock, int webquery){
         }
         DBG("%s", obuff);
     }
-    // send data
-    size_t send = BUFLEN10 - rest;
     red("send %zd bytes\n", send);
     if(send != (size_t)write(sock, buf, send)){
         WARN("write()");

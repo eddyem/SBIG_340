@@ -54,6 +54,19 @@ static int write_jpeg(const char *fname, const uint8_t *data, imstorage *img){
     gdFTUseFontConfig(1);
     char *ret = gdImageStringFT(im, NULL, 0xffffff, "monotype", 10, 0., 2, 12, date);
     if(ret) fprintf(stderr, "Error: %s\n", ret);
+    const char *prefx = "";
+    double ex = img->exptime;
+    if(ex < 1.){
+        if(ex < 0.001){ // micro
+            prefx = "u";
+            ex *= 1e6;
+        }else{ // milli
+            prefx = "m";
+            ex *= 1e3;
+        }
+    }
+    snprintf(date, 256, "exp=%.3g %ss", ex, prefx);
+    gdImageStringFT(im, NULL, 0xffffff, "monotype", 10, 0., 2, img->H-4, date);
     im->tpixels[10][10] = 0XFF0000;
     im->tpixels[15][15] = 0XFF0000;
     gdImageJpeg(im, fp, 90);
