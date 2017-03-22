@@ -120,6 +120,9 @@ int main(int argc, char **argv){
     img->timestamp = G->timestamp;
 #endif
 #if defined CLIENT || defined DAEMON
+    #ifdef DAEMON
+        set_darks(G->min_dark_exp, G->dark_interval);
+    #endif
     daemonize(img, G->hostname, G->port);
 #endif
     if(img){

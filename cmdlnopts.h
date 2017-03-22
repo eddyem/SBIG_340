@@ -50,6 +50,8 @@ typedef struct{
     char *imformat;         // output file format
     char *hostname;         // hostname to connect
     char *port;             // port to connect
+    double dark_interval;   // time interval (in seconds) between dark images taken
+    double min_dark_exp;    // minimal exposition (in seconds) @ which darks would be taken
     char** rest_pars;       // the rest parameters: array of char*
 } glob_pars;
 

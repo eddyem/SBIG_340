@@ -27,5 +27,8 @@
 #include "imfunctions.h"
 
 void daemonize(imstorage *img, char *hostname, char *port);
+#ifdef DAEMON
+void set_darks(double exp, double dt);
+#endif
 
 #endif // __SOCKET_H__

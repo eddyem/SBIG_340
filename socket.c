@@ -24,16 +24,14 @@
 #include "usefull_macros.h"
 #include "socket.h"
 #include "term.h"
-//#include <sys/socket.h>
-//#include <netinet/in.h>
 #include <netdb.h>      // addrinfo
 #include <arpa/inet.h>  // inet_ntop
 #include <pthread.h>
 #include <limits.h>     // INT_xxx
-#include <signal.h> // pthread_kill
-#include <unistd.h> // daemon
-#include <sys/wait.h> // wait
-#include <sys/prctl.h> //prctl
+#include <signal.h>     // pthread_kill
+#include <unistd.h>     // daemon
+#include <sys/wait.h>   // wait
+#include <sys/prctl.h>  //prctl
 
 #define BUFLEN    (10240)
 #define BUFLEN10  (1048576)
@@ -106,9 +104,15 @@ static int getdpar(uint8_t *str, char *parameter, double *ret){
 
 /**************** CLIENT/SERVER FUNCTIONS ****************/
 #ifdef DAEMON
+static double min_dark_exp, dark_interval;
 static imstorage *storedima = NULL;
 static uint64_t imctr = 0; // image counter
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+// setter for min_dark_exp, dark_interval
+void set_darks(double exp, double dt){
+    min_dark_exp = exp;
+    dark_interval = dt;
+}
 static void clearimstorage(){
     if(!storedima) return;
     FREE(storedima->imname);
@@ -296,6 +300,7 @@ static void daemon_(imstorage *img, int sock){
     FNAME();
     if(sock < 0) return;
     pthread_t sock_thread;
+    static double lastDT = 0.; // last time dark was taken
     if(pthread_create(&sock_thread, NULL, server, (void*) &sock))
         ERR("pthread_create()");
     int errcntr = 0;
@@ -307,6 +312,15 @@ static void daemon_(imstorage *img, int sock){
                 ERR("pthread_create()");
         }
         if(exp_calculated > 0.) img->exptime = exp_calculated;
+        if(img->imtype != IMTYPE_AUTODARK){ // check for darks
+            if(img->imtype == IMTYPE_DARK) img->imtype = IMTYPE_LIGHT; // last was dark
+            else if(img->exptime > min_dark_exp){ // need to store dark frame?
+                if(dtime() - lastDT > dark_interval){
+                    lastDT = dtime();
+                    img->imtype = IMTYPE_DARK;
+                }
+            }
+        }
         if(start_exposition(img, NULL)){
             WARNX(_("Error starting exposition, try later"));
             ++errcntr;

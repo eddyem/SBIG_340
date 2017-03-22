@@ -57,6 +57,8 @@ glob_pars const Gdefault = {
     .port = "4444",
     .once = 0,
     .timestamp = 0,
+    .dark_interval = 1800,
+    .min_dark_exp = 30,
 };
 
 /*
@@ -99,6 +101,8 @@ myoption cmdlnopts[] = {
     {"timestamp",NO_ARGS,   NULL,   't',    arg_int,    APTR(&G.timestamp), _("add timestamp to filename")},
 #endif
     {"port",    NEED_ARG,   NULL,   'p',    arg_string, APTR(&G.port),      _("port to connect (default: 4444)")},
+    {"dark-interval",NEED_ARG,NULL, 'D',    arg_double, APTR(&G.dark_interval),_("time interval (in seconds) between dark images taken (default: 1800)")},
+    {"min-dark-exp",NEED_ARG,NULL,  'E',    arg_double, APTR(&G.min_dark_exp),_("minimal exposition (in seconds) at which darks would be taken (default: 30)")},
 #endif
    end_option
 };

@@ -297,7 +297,7 @@ int writefits(imstorage *img){
     WRITEKEY(TSTRING, "FIELD", "180 degrees", "Camera field of view");
     switch(img->imtype){
         case IMTYPE_AUTODARK:
-            sprintf(buf, "object without dark");
+            sprintf(buf, "obj.-dark");
         break;
         case IMTYPE_DARK:
             sprintf(buf, "dark");
@@ -345,7 +345,13 @@ int writefits(imstorage *img){
         snprintf(buf, 80, "(%d, %d)", img->subframe->Xstart, img->subframe->Ystart);
         WRITEKEY(TSTRING, "SUBFRAME", buf, "Subframe start coordinates (Xstart, Ystart)");
     }
-    TRYFITS(fits_write_img, fp, TUSHORT, 1, img->W * img->H, img->imdata);
+    // flip image around OX
+    size_t W = img->W, Wb = sizeof(uint16_t)*W, H = img->H, imsz = img->W * H, y;
+    uint16_t *image = MALLOC(uint16_t, imsz), *optr = image, *iptr = &img->imdata[W*(H-1)];
+    for(y = 0; y < H; ++y, optr += W, iptr -= W)
+        memcpy(optr, iptr, Wb);
+    TRYFITS(fits_write_img, fp, TUSHORT, 1, imsz, image);
+    FREE(image);
     TRYFITS(fits_close_file, fp);
     if(*filename == '!') ++filename; // remove '!' from filename
     modifytimestamp(filename, img);
@@ -483,7 +489,8 @@ int store_image(imstorage *img){
     if(img->imformat & FORMAT_FITS){ // save FITS
         if(writefits(img)) status |= 4;
     }
-    if(write_debayer(img, glob_min)) status |= 8; // and save colour image
+    if(img->imtype != IMTYPE_DARK) // store debayer only if image type isn't dark
+        if(write_debayer(img, glob_min)) status |= 8; // and save colour image
     return status;
 }
 #endif
