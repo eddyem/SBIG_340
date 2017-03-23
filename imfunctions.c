@@ -71,6 +71,7 @@ char *make_filename(imstorage *img, const char *suff){
             stm->tm_hour, stm->tm_min, stm->tm_sec);
         outfile = fnbuf;
     }
+    DBG("name: %s", outfile);
     if(st == STORE_NORMAL || st == STORE_REWRITE){
         snprintf(buff, FILENAME_MAX, "%s.%s", outfile, suff);
         if(stat(buff, &filestat)){
@@ -106,8 +107,9 @@ char *make_filename(imstorage *img, const char *suff){
  * @param store    (i) - "overwrite" (or "rewrite"), "normal" (or NULL), "enumerate" (or "numerate")
  * @param format   (i) - image format (ft[rd])
  */
-imstorage *chk_storeimg(char *filename, char* store, char *format){
+imstorage *chk_storeimg(imstorage *ist, char* store, char *format){
     FNAME();
+    if(!ist || !ist->imname) return NULL;
     store_type st = STORE_NORMAL;
     image_format fmt = FORMAT_FITS;
     if(store){ // rewrite or enumerate
@@ -119,9 +121,7 @@ imstorage *chk_storeimg(char *filename, char* store, char *format){
             return NULL;
         }
     }
-    char *nm = strdup(filename);
-    if(!nm) ERRX("strdup");
-    char *pt = strrchr(nm, '.');
+    char *pt = strrchr(ist->imname, '.');
     DBG("input format: %s", format);
     image_format fbysuff = FORMAT_NONE;
     // check if name's suffix is filetype
@@ -142,7 +142,6 @@ imstorage *chk_storeimg(char *filename, char* store, char *format){
            strchr(format, 'd') || strchr(format, 'D')) fbysuff |= FORMAT_RAW;
         if(fbysuff == FORMAT_NONE){
             WARNX(_("Wrong format string: %s"), format);
-            free(nm);
             return NULL;
         }
         fmt = fbysuff;
@@ -155,17 +154,12 @@ imstorage *chk_storeimg(char *filename, char* store, char *format){
     #define FMTSZ (3)
     image_format formats[FMTSZ] = {FORMAT_FITS, FORMAT_TIFF, FORMAT_RAW};
     const char *suffixes[FMTSZ] = {SUFFIX_FITS, SUFFIX_TIFF, SUFFIX_RAW};
-    imstorage *ist = MALLOC(imstorage, 1);
     ist->st = st;
     ist->imformat = fmt;
-    ist->imname = strdup(nm);
     for(size_t i = 0; i < FMTSZ; ++i){
         if(!(formats[i] & fmt)) continue;
         if(!make_filename(ist, suffixes[i])){
             WARNX(_("Can't create output file (is it exists?)"));
-            free(nm);
-            free(ist->imname);
-            free(ist);
             return NULL;
         }
     }
@@ -424,7 +418,7 @@ int save_histo(FILE *f, imstorage *img){
     if(mul > mulmax) mul = mulmax;
     double E = img->exptime * mul;
     if(E < 5e-5) E = 5e-5; // too short exposition
-    else if(E > 300.) E = 300.; // no need to do expositions larger than 5 minutes
+    else if(E > 90.) E = 90.; // no need to do expositions larger than 1.5 minutes
     green("Recommended exposition time: %g seconds\n", E);
     exp_calculated = E;
     return 0;

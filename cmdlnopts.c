@@ -52,7 +52,7 @@ glob_pars const Gdefault = {
     .imtype = "l",
     .imformat = NULL,
     .imstoretype = NULL,
-    .outpfname = "output.tiff",
+    .outpfname = "output.fits",
     .hostname = NULL,
     .port = "4444",
     .once = 0,
@@ -77,7 +77,7 @@ myoption cmdlnopts[] = {
 // not daemon options
 #ifndef DAEMON
     {"storetype",NEED_ARG,  NULL,   'S',    arg_string, APTR(&G.imstoretype),_("'overwrite'/'rewrite' to rewrite existing image, 'enumerate'/'numerate' to use given filename as base for series")},
-    {"output",  NEED_ARG,   NULL,   'o',    arg_string, APTR(&G.outpfname), _("output file name (default: output.tiff)")},
+    {"output",  NEED_ARG,   NULL,   'o',    arg_string, APTR(&G.outpfname), _("output file name (default: output.fits)")},
     {"imformat",NEED_ARG,   NULL,   'f',    arg_string, APTR(&G.imformat),  _("image format: FITS (f), TIFF (t), raw dump with histogram storage (r,d), may be OR'ed; default: FITS or based on output image name")},
 #endif
 // not client options
@@ -101,6 +101,9 @@ myoption cmdlnopts[] = {
     {"timestamp",NO_ARGS,   NULL,   't',    arg_int,    APTR(&G.timestamp), _("add timestamp to filename")},
 #endif
     {"port",    NEED_ARG,   NULL,   'p',    arg_string, APTR(&G.port),      _("port to connect (default: 4444)")},
+#endif
+// only daemon options
+#ifdef DAEMON
     {"dark-interval",NEED_ARG,NULL, 'D',    arg_double, APTR(&G.dark_interval),_("time interval (in seconds) between dark images taken (default: 1800)")},
     {"min-dark-exp",NEED_ARG,NULL,  'E',    arg_double, APTR(&G.min_dark_exp),_("minimal exposition (in seconds) at which darks would be taken (default: 30)")},
 #endif

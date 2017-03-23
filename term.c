@@ -500,6 +500,14 @@ int start_exposition(imstorage *im, char *imtype){
         b = bngs[binning];
     }else b = "subframe";
     cmd[4] = binning;
+    if(!imtype){
+	it = im->imtype;
+	switch(im->imtype){
+	    case IMTYPE_DARK: imtype = "dark"; break;
+	    case IMTYPE_AUTODARK: imtype = "autodark"; break;
+	    case IMTYPE_LIGHT: default: imtype = "light";
+	}
+    }
     // and now check image type
     if(imtype){
         int L = strlen(imtype);

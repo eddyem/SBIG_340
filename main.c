@@ -22,6 +22,7 @@
 #include <sys/wait.h>
 #include <sys/prctl.h>
 #include <signal.h>
+#include <time.h>
 #ifndef EBUG
 #include <sys/prctl.h>
 #endif
@@ -81,11 +82,15 @@ int main(int argc, char **argv){
             G->binning = 0xff; // take subframe
         }
 #endif // !CLIENT
+        img = MALLOC(imstorage, 1);
+#ifdef CLIENT
+        img->once = G->once;
+        img->timestamp = G->timestamp;
+#endif
 #ifndef DAEMON
-        img = chk_storeimg(G->outpfname, G->imstoretype, G->imformat);
-        if(!img) return 1;
-#else
-        img = MALLOC(imstorage, 1); // just allocate empty: all we need in daemon is exposition & binning
+        img->imname = G->outpfname;
+        img->exposetime = time(NULL);
+        if(!chk_storeimg(img, G->imstoretype, G->imformat)) return 1;
 #endif
 #ifndef CLIENT
         if(img){
@@ -115,10 +120,6 @@ int main(int argc, char **argv){
         run_terminal(); // non-echo terminal mode
     }
 #endif // !defined DAEMON && !defined CLIENT
-#ifdef CLIENT
-    img->once = G->once;
-    img->timestamp = G->timestamp;
-#endif
 #if defined CLIENT || defined DAEMON
     #ifdef DAEMON
         set_darks(G->min_dark_exp, G->dark_interval);

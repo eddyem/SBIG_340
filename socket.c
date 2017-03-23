@@ -334,7 +334,8 @@ static void daemon_(imstorage *img, int sock){
                 pthread_mutex_lock(&mutex);
                 if(copyima(img)){
                     ++imctr;
-                    save_histo(NULL, img); // calculate next optimal exposition
+		    if(img->imtype != IMTYPE_DARK)
+                	save_histo(NULL, img); // calculate next optimal exposition
                 }
                 pthread_mutex_unlock(&mutex);
             }
