@@ -242,7 +242,7 @@ void *handle_socket(void *asock){
             continue;
         }
         _read = read(sock, buff, BUFLEN);
-        if(_read < 0){ // error or disconnect
+        if(_read < 1){ // error or disconnect
             DBG("Nothing to read from fd %d (ret: %zd)", sock, _read);
             break;
         }
