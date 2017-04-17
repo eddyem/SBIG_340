@@ -224,7 +224,7 @@ void *handle_socket(void *asock){
     int sock = *((int*)asock);
     int webquery = 0; // whether query is web or regular
     char buff[BUFLEN];
-    ssize_t readed;
+    ssize_t _read;
     while(1){
         if(!waittoread(sock)){ // no data incoming
             pthread_mutex_lock(&mutex);
@@ -241,14 +241,14 @@ void *handle_socket(void *asock){
             pthread_mutex_unlock(&mutex);
             continue;
         }
-        if(!(readed = read(sock, buff, BUFLEN))) continue;
-        DBG("Got %zd bytes", readed);
-        if(readed < 0){ // error or disconnect
-            DBG("Nothing to read from fd %d (ret: %zd)", sock, readed);
+        _read = read(sock, buff, BUFLEN);
+        if(_read < 0){ // error or disconnect
+            DBG("Nothing to read from fd %d (ret: %zd)", sock, _read);
             break;
         }
+        DBG("Got %zd bytes", _read);
         // add trailing zero to be on the safe side
-        buff[readed] = 0;
+        buff[_read] = 0;
         // now we should check what do user want
         char *got, *found = buff;
         if((got = stringscan(buff, "GET")) || (got = stringscan(buff, "POST"))){ // web query
@@ -334,8 +334,8 @@ static void daemon_(imstorage *img, int sock){
                 pthread_mutex_lock(&mutex);
                 if(copyima(img)){
                     ++imctr;
-		    if(img->imtype != IMTYPE_DARK)
-                	save_histo(NULL, img); // calculate next optimal exposition
+            if(img->imtype != IMTYPE_DARK)
+                    save_histo(NULL, img); // calculate next optimal exposition
                 }
                 pthread_mutex_unlock(&mutex);
             }
@@ -426,10 +426,6 @@ void daemonize(imstorage *img, char *hostname, char *port){
     FNAME();
 #ifndef EBUG
     if(!img->once){
-    green("Daemonize\n");
-    if(daemon(1, 0)){
-        ERR("daemon()");
-    }
     while(1){ // guard for dead processes
         pid_t childpid = fork();
         if(childpid){

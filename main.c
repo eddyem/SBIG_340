@@ -55,7 +55,17 @@ int main(int argc, char **argv){
 
     imstorage *img = NULL;
     imsubframe *F = NULL;
-
+// daemonize @ start
+#if defined DAEMON || defined CLIENT
+    #ifndef EBUG
+    if(!G->once){
+        green("Daemonize\n");
+        if(daemon(1, 0)){
+            ERR("daemon()");
+        }
+    }
+    #endif
+#endif
 #ifndef CLIENT
     if(G->splist){
         list_speeds();
@@ -88,7 +98,7 @@ int main(int argc, char **argv){
         img->timestamp = G->timestamp;
 #endif
 #ifndef DAEMON
-        img->imname = G->outpfname;
+        img->imname = strdup(G->outpfname);
         img->exposetime = time(NULL);
         if(!chk_storeimg(img, G->imstoretype, G->imformat)) return 1;
 #endif
