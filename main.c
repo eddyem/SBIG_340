@@ -55,22 +55,38 @@ int main(int argc, char **argv){
 
     imstorage *img = NULL;
     imsubframe *F = NULL;
-// daemonize @ start
-#if defined DAEMON || defined CLIENT
-    #ifndef EBUG
-    if(!G->once){
-        green("Daemonize\n");
-        if(daemon(1, 0)){
-            ERR("daemon()");
-        }
-    }
-    #endif
-#endif
-#ifndef CLIENT
+    #ifndef CLIENT
     if(G->splist){
         list_speeds();
         return 0;
     }
+    #endif // !CLIENT
+// daemonize @ start
+#if defined DAEMON || defined CLIENT
+    if(!G->once){
+        #ifndef EBUG
+        green("Daemonize");
+        printf("\n");
+        fflush(stdout);
+        if(daemon(1, 0)){
+            ERR("daemon()");
+        }
+        #endif // EBUG
+        while(1){ // guard for dead processes
+            pid_t childpid = fork();
+            if(childpid){
+                DBG("Created child with PID %d\n", childpid);
+                wait(NULL);
+                WARNX("Child %d died\n", childpid);
+                sleep(1);
+            }else{
+                prctl(PR_SET_PDEATHSIG, SIGTERM); // send SIGTERM to child when parent dies
+                break; // go out to normal functional
+            }
+        }
+    }
+#endif // DAEMON || CLIENT
+#ifndef CLIENT
     if(!try_connect(G->device, G->speed)){
         WARNX(_("Check power and connection: device not answer!"));
         return 1;
@@ -83,9 +99,9 @@ int main(int argc, char **argv){
         WARNX(_("Can't send shutter command: %s"), G->shutter_cmd);
     if(G->heater != HEATER_LEAVE)
         heater(G->heater); // turn on/off heater
-#if !defined DAEMON && !defined CLIENT
+#ifndef DAEMON
     if(G->takeimg){
-#endif
+#endif // DAEMON
         if(G->subframe){
             if(!(F = define_subframe(G->subframe)))
                 ERRX(_("Error defining subframe"));

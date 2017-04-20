@@ -424,21 +424,6 @@ static void client_(imstorage *img, int sock){
  */
 void daemonize(imstorage *img, char *hostname, char *port){
     FNAME();
-#ifndef EBUG
-    if(!img->once){
-    while(1){ // guard for dead processes
-        pid_t childpid = fork();
-        if(childpid){
-            DBG("Created child with PID %d\n", childpid);
-            wait(NULL);
-            WARNX("Child %d died\n", childpid);
-            sleep(1);
-        }else{
-            prctl(PR_SET_PDEATHSIG, SIGTERM); // send SIGTERM to child when parent dies
-            break; // go out to normal functional
-        }
-    }}
-#endif
     int sock = -1;
     struct addrinfo hints, *res, *p;
     memset(&hints, 0, sizeof(hints));

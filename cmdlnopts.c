@@ -121,8 +121,19 @@ glob_pars *parse_args(int argc, char **argv){
     int i;
     void *ptr;
     ptr = memcpy(&G, &Gdefault, sizeof(G)); assert(ptr);
+    size_t hlen = 1024;
+    char helpstring[1024], *hptr = helpstring;
+    #ifndef LIBCFITSIO
+        int l0 = snprintf(hptr, hlen, "\t%s\n", _("Warning! Compiled without FITS support!!!"));
+        if(l0 > 0){ hptr += l0; hlen -= l0;}
+    #endif // LIBCFITSIO
+    #ifndef LIBTIFF
+        int l1 = snprintf(hptr, hlen, "\t%s\n", _("Warning! Compiled without TIFF support!!!"));
+        if(l1 > 0){ hptr += l1; hlen -= l1;}
+    #endif // LIBTIFF
+    snprintf(hptr, hlen, "Usage: %%s [args]\n\n\tWhere args are:\n");
     // format of help: "Usage: progname [args]\n"
-    change_helpstring("Usage: %s [args]\n\n\tWhere args are:\n");
+    change_helpstring(helpstring);
     // parse arguments
     parseargs(&argc, &argv, cmdlnopts);
     if(help) showhelp(-1, cmdlnopts);

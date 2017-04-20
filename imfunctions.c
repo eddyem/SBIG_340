@@ -28,10 +28,16 @@
 #include <math.h>    // sqrt
 #include <time.h>    // time, gmtime etc
 #ifndef DAEMON
+#ifdef LIBRAW
 #include "debayer.h"
+#endif // LIBRAW
+#ifdef LIBCFITSIO
 #include <fitsio.h>  // save fits
+#endif // LIBCFITSIO
+#ifdef LIBTIFF
 #include <tiffio.h>  // save tiff
-#endif
+#endif // LIBTIFF
+#endif // !DAEMON
 #include <libgen.h>  // basename
 #include <sys/stat.h> // utimensat
 #include <fcntl.h>   // AT_...
@@ -82,8 +88,10 @@ char *make_filename(imstorage *img, const char *suff){
             else return buff;
         }else{ // file exists
             if(st == STORE_REWRITE){
+                #ifdef LIBCFITSIO
                 if(0 == strcmp(suff, SUFFIX_FITS)) // add '!' before image name
-                snprintf(buff, FILENAME_MAX, "!%s.%s", outfile, suff);
+                    snprintf(buff, FILENAME_MAX, "!%s.%s", outfile, suff);
+                #endif // LIBCFITSIO
                 return buff;
             }
             else return NULL; // file exists on option STORE_NORMAL
@@ -111,7 +119,16 @@ imstorage *chk_storeimg(imstorage *ist, char* store, char *format){
     FNAME();
     if(!ist || !ist->imname) return NULL;
     store_type st = STORE_NORMAL;
-    image_format fmt = FORMAT_FITS;
+    // default format depends on compile flags
+    image_format fmt =
+        #ifdef LIBCFITSIO
+        FORMAT_FITS
+        #elif defined LIBTIFF
+        FORMAT_TIFF
+        #else
+        FORMAT_RAW
+        #endif
+    ;
     if(store){ // rewrite or enumerate
         int L = strlen(store);
         if(0 == strncasecmp(store, "overwrite", L) || 0 == strncasecmp(store, "rewrite", L)) st = STORE_REWRITE;
@@ -158,6 +175,14 @@ imstorage *chk_storeimg(imstorage *ist, char* store, char *format){
     ist->imformat = fmt;
     for(size_t i = 0; i < FMTSZ; ++i){
         if(!(formats[i] & fmt)) continue;
+        #ifndef LIBTIFF
+            if(formats[i] == FORMAT_TIFF)
+                ERRX(_("Compiled without TIFF support"));
+        #endif // LIBTIFF
+        #ifndef LIBCFITSIO
+            if(formats[i] == FORMAT_FITS)
+                ERRX(_("Compiled without FITS support"));
+        #endif // LIBCFITSIO
         if(!make_filename(ist, suffixes[i])){
             WARNX(_("Can't create output file (is it exists?)"));
             return NULL;
@@ -166,6 +191,7 @@ imstorage *chk_storeimg(imstorage *ist, char* store, char *format){
     return ist;
 }
 
+#ifdef LIBTIFF
 /**
  * Try to write tiff file
  * @return 0 if all OK
@@ -203,7 +229,8 @@ int writetiff(imstorage *img){
     modifytimestamp(name, img);
     return 0;
 }
-#endif
+#endif // LIBTIFF
+#endif // !DAEMON
 
 /**
  * Calculate image statistics: print it on screen and save for `writefits`
@@ -253,6 +280,7 @@ void print_stat(imstorage *img){
 }
 
 #ifndef DAEMON
+#ifdef LIBCFITSIO
 #define TRYFITS(f, ...)                     \
 do{ int status = 0;                         \
     f(__VA_ARGS__, &status);                \
@@ -352,7 +380,8 @@ int writefits(imstorage *img){
     green(_("Image %s saved\n"), filename);
     return 0;
 }
-#endif
+#endif // LIBCFITSIO
+#endif // !DAEMON
 
 #ifndef CLIENT
 /**
@@ -370,7 +399,7 @@ uint16_t *get_imdata(imstorage *img){
     img->imdata = imdata;
     return imdata;
 }
-#endif
+#endif // CLIENT
 
 /**
  * save truncated to 256 levels histogram of `img` into file `f`
@@ -393,32 +422,32 @@ int save_histo(FILE *f, imstorage *img){
             }
         }
     }
-    size_t low2 = S/50, med = S/2, up2 = (S*49)/50, acc = 0;
+    size_t low5 = S/20, med = S/2, up5 = (S*19)/20, acc = 0;
     int lval = -1, mval = -1, tval = -1;
     for(l = 0; l < 256; ++l){ // get stat parameters
         acc += histogram[l];
-        if(lval < 0 && acc >= low2) lval = l;
+        if(lval < 0 && acc >= low5) lval = l;
         if(mval < 0 && acc >= med) mval = l;
-        if(tval < 0 && acc >= up2) tval = l;
+        if(tval < 0 && acc >= up5) tval = l;
     }
     DBG("acc = %zd, S = %zd", acc, S);
-    printf("low 2%% (%zd pixels) = %d, median (%zd pixels) = %d, up 2%% (%zd pixels) = %d\n",
-        low2, lval, med, mval, up2, tval);
+    printf("low 5%% (%zd pixels) = %d, median (%zd pixels) = %d, up 5%% (%zd pixels) = %d\n",
+        low5, lval, med, mval, up5, tval);
     double mul = 1., mulmax = 255. / tval;
-    if(tval <= 240){ // no overexposed pixels
+    if(tval <= 200){ // no overexposed pixels
         if(lval < 32){ // narrow histogram with overexposed black level
-            mul = 240. / tval;
+            mul = 200. / tval;
         }else mul = 32. / lval;
     }else{
-        if(mval > 134){
-            if(mval < 245) mul = 64. / mval;
+        if(mval > 64){
+            if(mval < 200) mul = 64. / mval;
             else mul = 0.1;
         }
     }
     if(mul > mulmax) mul = mulmax;
     double E = img->exptime * mul;
     if(E < 5e-5) E = 5e-5; // too short exposition
-    else if(E > 90.) E = 90.; // no need to do expositions larger than 1.5 minutes
+    else if(E > 180.) E = 180.; // no need to do expositions larger than 3 minutes
     green("Recommended exposition time: %g seconds\n", E);
     exp_calculated = E;
     return 0;
@@ -474,17 +503,26 @@ int store_image(imstorage *img){
     #endif
        ) || !img->W || !img->H) return 1;
     print_stat(img);
+    #ifdef LIBTIFF
     if(img->imformat & FORMAT_TIFF){ // save tiff file
         if(writetiff(img)) status |= 1;
     }
+    #endif
     if(img->imformat & FORMAT_RAW){ // save RAW dump & truncated histogram
         if(writedump(img)) status |= 2;
     }
+    #ifdef LIBCFITSIO
     if(img->imformat & FORMAT_FITS){ // save FITS
         if(writefits(img)) status |= 4;
     }
-    if(img->imtype != IMTYPE_DARK) // store debayer only if image type isn't dark
-        if(write_debayer(img, glob_min)) status |= 8; // and save colour image
+    #endif
+    #ifdef LIBRAW
+    if(img->imtype != IMTYPE_DARK){ // store debayer only if image type isn't dark
+        int lowval = glob_avr - 3*glob_std;
+        if(glob_min > lowval) lowval = glob_min;
+        if(write_debayer(img, (uint16_t)lowval)) status |= 8; // and save colour image
+    }
+    #endif
     return status;
 }
-#endif
+#endif // !DAEMON

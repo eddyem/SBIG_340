@@ -207,7 +207,7 @@ int try_connect(char *device, int speed){
         spdmax = spdstart + 1;
     }
     uint8_t tmpbuf[4096];
-    green(_("Connecting to %s... "), device);
+    green(_("Connecting to %s...\n"), device);
     for(curspd = spdstart; curspd < spdmax; ++curspd){
         tty_init(device, Bspeeds[curspd]);
         read_tty(tmpbuf, 4096); // clear rbuf
@@ -238,7 +238,7 @@ int try_connect(char *device, int speed){
         green(_("Connection established at B%d.\n"), speeds[curspd]);
         return speeds[curspd];
     }
-    green(_("No connection!\n"));
+    red(_("No connection!\n"));
     return 0;
 }
 
@@ -501,12 +501,12 @@ int start_exposition(imstorage *im, char *imtype){
     }else b = "subframe";
     cmd[4] = binning;
     if(!imtype){
-	it = im->imtype;
-	switch(im->imtype){
-	    case IMTYPE_DARK: imtype = "dark"; break;
-	    case IMTYPE_AUTODARK: imtype = "autodark"; break;
-	    case IMTYPE_LIGHT: default: imtype = "light";
-	}
+    it = im->imtype;
+    switch(im->imtype){
+        case IMTYPE_DARK: imtype = "dark"; break;
+        case IMTYPE_AUTODARK: imtype = "autodark"; break;
+        case IMTYPE_LIGHT: default: imtype = "light";
+    }
     }
     // and now check image type
     if(imtype){
