@@ -85,6 +85,11 @@ int open_serial(char *dev);
 int get_curspeed();
 int try_connect(char *device, int speed);
 void heater(heater_cmd cmd);
+// setters for indirect heater using
+void heater_on();
+void heater_off();
+void set_heater_period(int p);
+
 void list_speeds();
 void abort_image();
 int term_setspeed(int speed);
@@ -94,5 +99,6 @@ imsubframe *define_subframe(char *parm);
 int start_exposition(imstorage *im, char *imtype);
 int wait4image();
 uint16_t *get_image(imstorage *img);
+void set_heater_period(int p);
 
 #endif // __TERM_H__

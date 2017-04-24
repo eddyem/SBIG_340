@@ -59,6 +59,8 @@ glob_pars const Gdefault = {
     .timestamp = 0,
     .dark_interval = 1800,
     .min_dark_exp = 30,
+    .max_exptime = -1,
+    .htrperiod = 0
 };
 
 /*
@@ -82,6 +84,8 @@ myoption cmdlnopts[] = {
 #endif
 // not client options
 #ifndef CLIENT
+    {"exptime-max",NEED_ARG,NULL,   0,      arg_double, APTR(&G.max_exptime),_("maximal exposition time (seconds)")},
+    {"heaterperiod", NEED_ARG,NULL, 0,      arg_int,    APTR(&G.htrperiod), _("change heater ON time (0..3599 seconds)")},
     {"device",  NEED_ARG,   NULL,   'i',    arg_string, APTR(&G.device),    _("serial device name (default: " DEFAULT_COMDEV ")")},
     {"heater-on",NO_ARGS,   APTR(&G.heater),HEATER_ON,  arg_none, NULL,     _("turn heater on")},
     {"heater-off",NO_ARGS,  APTR(&G.heater),HEATER_OFF, arg_none, NULL,     _("turn heater off")},

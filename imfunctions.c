@@ -401,6 +401,11 @@ uint16_t *get_imdata(imstorage *img){
 }
 #endif // CLIENT
 
+static double max_exptime = 180.;
+void set_max_exptime(double t){
+    if(t > 30. && t < 300.) max_exptime = t;
+}
+
 /**
  * save truncated to 256 levels histogram of `img` into file `f`
  * @return 0 if all OK
@@ -447,7 +452,7 @@ int save_histo(FILE *f, imstorage *img){
     if(mul > mulmax) mul = mulmax;
     double E = img->exptime * mul;
     if(E < 5e-5) E = 5e-5; // too short exposition
-    else if(E > 180.) E = 180.; // no need to do expositions larger than 3 minutes
+    else if(E > max_exptime) E = max_exptime; // no need to do expositions larger than max_exptime
     green("Recommended exposition time: %g seconds\n", E);
     exp_calculated = E;
     return 0;
@@ -523,6 +528,7 @@ int store_image(imstorage *img){
         if(write_debayer(img, (uint16_t)lowval)) status |= 8; // and save colour image
     }
     #endif
+    putlog("Save image, status=%d", status);
     return status;
 }
 #endif // !DAEMON

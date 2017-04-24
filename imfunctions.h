@@ -78,6 +78,8 @@ extern double exp_calculated;
 #define SUFFIX_TIFF         "tiff"
 #define SUFFIX_JPEG         "jpg"
 
+
+void set_max_exptime(double t);
 char *make_filename(imstorage *img, const char *suff);
 imstorage *chk_storeimg(imstorage *img, char* store, char *format);
 int store_image(imstorage *filename);

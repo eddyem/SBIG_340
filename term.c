@@ -48,6 +48,22 @@ static int speeds[] = {
     460800
 };
 
+// values changed by heater_on() and heater_off() for indirect heater commands
+static int set_heater_on = 0, set_heater_off = 0;
+static time_t heater_period = 600; // default value for heater ON - 10 minutes
+// change value of heater_period
+void set_heater_period(int p){
+    if(p > 0 && p < 3600) heater_period = (time_t) p;
+}
+void heater_on(){
+    set_heater_on = 1;
+    set_heater_off = 0;
+}
+void heater_off(){
+    set_heater_off = 1;
+    set_heater_on = 0;
+}
+
 void list_speeds(){
     green(_("Speeds available:\n"));
     for(int i = 0; i < speedssize; ++i)
@@ -126,6 +142,7 @@ static int download_in_progress = 0; // == 1 when image downloading runs
  * Used only on exit, so don't check commands status
  */
 void abort_image(){
+    putlog("Abort image exposition");
     uint8_t tmpbuf[4096];
     if(download_in_progress){
         read_tty(tmpbuf, 4096);
@@ -235,9 +252,11 @@ int try_connect(char *device, int speed){
         }
         if(TRANS_SUCCEED != st || l != 1 || *rd != ANS_COMM_TEST) continue;
         DBG("Got it!");
+        putlog("Connection established at B%d",  speeds[curspd]);
         green(_("Connection established at B%d.\n"), speeds[curspd]);
         return speeds[curspd];
     }
+    putlog("No connection!");
     red(_("No connection!\n"));
     return 0;
 }
@@ -338,6 +357,7 @@ void heater(heater_cmd cmd){
     trans_status st = TRANS_TIMEOUT;
     if(i < 10) st = wait_checksum();
     if(i == 10 || st != TRANS_SUCCEED){
+        putlog("Can't send heater command");
         WARNX(_("Can't send heater command: %s"), (st==TRANS_TIMEOUT) ? _("no answer") : _("bad checksum"));
     }
 }
@@ -464,7 +484,7 @@ imsubframe *define_subframe(char *parm){
 }
 
 /**
- * Send command to start exposition
+ * Send command to start exposition & turn heater on/off if got command to do it
  * @param binning - binning to expose
  * @param exptime - exposition time
  * @param imtype  - autodark, light or dark
@@ -472,6 +492,23 @@ imsubframe *define_subframe(char *parm){
  */
 int start_exposition(imstorage *im, char *imtype){
     FNAME();
+    // check heater commands
+    static time_t htr_on_time = 0;
+    if(htr_on_time && time(NULL) - htr_on_time > heater_period){
+        set_heater_off = 0;
+        set_heater_on = 0;
+        heater(HEATER_OFF);
+        htr_on_time = 0;
+    }
+    if(set_heater_off){
+        set_heater_off = 0;
+        heater(HEATER_OFF);
+        htr_on_time = 0;
+    }else if(set_heater_on){
+        set_heater_on = 0;
+        heater(HEATER_ON);
+        htr_on_time = time(NULL);
+    }
     double exptime = im->exptime;
     uint64_t exp100us = exptime * 10000.;
     static uint8_t cmd[6] = {CMD_TAKE_IMAGE}; // `static` to save all data after first call
@@ -545,6 +582,7 @@ int start_exposition(imstorage *im, char *imtype){
         WARNX(_("Didn't get the respond"));
         return 8;
     }
+    putlog("start exposition, exptime=%gs", exptime);
     im->imtype = it;
     size_t W, H;
     switch(im->binning){ // set image size
@@ -699,6 +737,7 @@ uint16_t *get_image(imstorage *img){
         bptr = ptr;
     }while(rest);
     printf("\b Done!\n");
+    putlog("got image data");
     DBG("Got full data packet, capture time: %.1f seconds", dtime() - tstart);
     download_in_progress = 0;
     return buff;

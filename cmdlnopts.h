@@ -52,6 +52,8 @@ typedef struct{
     char *port;             // port to connect
     double dark_interval;   // time interval (in seconds) between dark images taken
     double min_dark_exp;    // minimal exposition (in seconds) @ which darks would be taken
+    double max_exptime;     // maximal exposition time
+    int htrperiod;          // new value for heater ON time (0..3599 seconds)
     char** rest_pars;       // the rest parameters: array of char*
 } glob_pars;
 

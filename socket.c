@@ -79,7 +79,7 @@ static uint8_t *findpar(uint8_t *str, char *par){
  * get integer & double `parameter` value from string `str`, put value to `ret`
  * @return 1 if all OK
  */
-static long getintpar(uint8_t *str, char *parameter, long *ret){
+static int getintpar(uint8_t *str, char *parameter, long *ret){
     long tmp;
     char *endptr;
     if(!(str = findpar(str, parameter))) return 0;
@@ -90,6 +90,7 @@ static long getintpar(uint8_t *str, char *parameter, long *ret){
     DBG("get par: %s = %ld", parameter, tmp);
     return 1;
 }
+#ifdef CLIENT
 static int getdpar(uint8_t *str, char *parameter, double *ret){
     double tmp;
     char *endptr;
@@ -101,6 +102,7 @@ static int getdpar(uint8_t *str, char *parameter, double *ret){
     DBG("get par: %s = %g", parameter, tmp);
     return 1;
 }
+#endif // CLIENT
 
 /**************** CLIENT/SERVER FUNCTIONS ****************/
 #ifdef DAEMON
@@ -201,6 +203,7 @@ int send_ima(int sock, int webquery){
         WARN("write()");
         return 0;
     }
+    putlog("send image to client");
     return 1;
 }
 
@@ -243,6 +246,7 @@ void *handle_socket(void *asock){
         }
         _read = read(sock, buff, BUFLEN);
         if(_read < 1){ // error or disconnect
+            putlog("Client disconnected");
             DBG("Nothing to read from fd %d (ret: %zd)", sock, _read);
             break;
         }
@@ -259,9 +263,15 @@ void *handle_socket(void *asock){
         }
         // here we can process user data
         printf("user send: %s\n", found);
-        long ii; double dd;
-        if(getdpar((uint8_t*)found, "exptime", &dd)) printf("exptime: %g\n", dd);
-        if(getintpar((uint8_t*)found, "somepar", &ii)) printf("somepar: %ld\n", ii);
+        long htr;
+        // double dd;
+        //if(getdpar((uint8_t*)found, "exptime", &dd)) printf("exptime: %g\n", dd);
+        if(getintpar((uint8_t*)found, "heater", &htr)){
+            putlog("got command: heater=%ld", htr);
+            if(htr == 0) heater_off();
+            else heater_on();
+            break; // disconnect after command receiving
+        }
     }
     close(sock);
     //DBG("closed");
@@ -286,6 +296,7 @@ void *server(void *asock){
             WARN("accept()");
             continue;
         }
+        putlog("Got connection from %s\n", inet_ntoa(their_addr.sin_addr));
         pthread_t handler_thread;
         if(pthread_create(&handler_thread, NULL, handle_socket, (void*) &newsock))
             WARN("pthread_create()");
@@ -307,6 +318,7 @@ static void daemon_(imstorage *img, int sock){
     do{
         if(pthread_kill(sock_thread, 0) == ESRCH){ // died
             WARNX("Sockets thread died");
+            putlog("Sockets thread died");
             pthread_join(sock_thread, NULL);
             if(pthread_create(&sock_thread, NULL, server, (void*) &sock))
                 ERR("pthread_create()");
@@ -322,12 +334,14 @@ static void daemon_(imstorage *img, int sock){
             }
         }
         if(start_exposition(img, NULL)){
+            putlog("Error starting exposition, try later");
             WARNX(_("Error starting exposition, try later"));
             ++errcntr;
         }else{
             FREE(img->imdata);
             if(!get_imdata(img)){
                 ++errcntr;
+                putlog("Error image transfer");
                 WARNX(_("Error image transfer"));
             }else{
                 errcntr = 0;
@@ -341,6 +355,7 @@ static void daemon_(imstorage *img, int sock){
             }
         }
         if(errcntr >= 33){
+            putlog("Unrecoverable error, errcntr=%d. Exit", errcntr);
             ERRX(_("Unrecoverable error"));
         }
     }while(1);
@@ -383,8 +398,6 @@ static void client_(imstorage *img, int sock){
     size_t Bufsiz = BUFLEN10;
     uint8_t *recvBuff = MALLOC(uint8_t, Bufsiz);
     while(1){
-        //size_t L = strlen(msg);
-        //if(send(sock, msg, L, 0) != L){ WARN("send"); continue;}
         if(!waittoread(sock)) continue;
         size_t offset = 0;
         do{
@@ -398,21 +411,30 @@ static void client_(imstorage *img, int sock){
                 DBG("Buffer reallocated, new size: %zd\n", Bufsiz);
             }
             ssize_t n = read(sock, &recvBuff[offset], Bufsiz - offset);
-            if(!n) break;
+            if(!n){
+                putlog("Socket closed");
+                break;
+            }
             if(n < 0){
+                putlog("error in read()");
                 WARN("read");
                 break;
             }
             offset += n;
         }while(waittoread(sock));
         if(!offset){
+            putlog("Socket closed");
             WARN("Socket closed\n");
             return;
         }
         DBG("read %zd bytes\n", offset);
         if(get_imstorage(img, recvBuff, offset)){
-            if(store_image(img))
+            if(store_image(img)){
+                putlog("Error storing image");
                 WARNX(_("Error storing image"));
+            }else{
+                putlog("Image saved");
+            }
         }
         if(img->once) break;
     }
@@ -438,6 +460,7 @@ void daemonize(imstorage *img, char *hostname, char *port){
     char str[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(ia->sin_addr), str, INET_ADDRSTRLEN);
     DBG("canonname: %s, port: %u, addr: %s\n", res->ai_canonname, ntohs(ia->sin_port), str);
+    putlog("connect to %s:%s", hostname, port);
     // loop through all the results and bind to the first we can
     for(p = res; p != NULL; p = p->ai_next){
         if((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1){
@@ -465,6 +488,7 @@ void daemonize(imstorage *img, char *hostname, char *port){
     }
     if(p == NULL){
         // looped off the end of the list with no successful bind
+        putlog("failed to bind socket");
         ERRX("failed to bind socket");
     }
     freeaddrinfo(res);
@@ -473,6 +497,7 @@ void daemonize(imstorage *img, char *hostname, char *port){
 #else
     daemon_(img, sock);
 #endif
+    putlog("Close socket");
     close(sock);
     signals(0);
 }

@@ -41,6 +41,7 @@ void signals(int signo){
     restore_console();
     restore_tty();
 #endif
+    putlog("Exit with status %d", signo);
     exit(signo);
 }
 
@@ -52,10 +53,13 @@ int main(int argc, char **argv){
     signal(SIGQUIT, signals); // ctrl+\ - quit
     signal(SIGTSTP, SIG_IGN); // ignore ctrl+Z
     glob_pars *G = parse_args(argc, argv);
-
+    if(G->rest_pars_num)
+        openlogfile(G->rest_pars[0]);
     imstorage *img = NULL;
     imsubframe *F = NULL;
     #ifndef CLIENT
+    if(G->htrperiod) set_heater_period(G->htrperiod);
+    if(G->max_exptime) set_max_exptime(G->max_exptime);
     if(G->splist){
         list_speeds();
         return 0;
@@ -65,18 +69,20 @@ int main(int argc, char **argv){
 #if defined DAEMON || defined CLIENT
     if(!G->once){
         #ifndef EBUG
-        green("Daemonize");
-        printf("\n");
+        putlog("Daemonize");
         fflush(stdout);
         if(daemon(1, 0)){
+            putlog("Can't daemonize");
             ERR("daemon()");
         }
         #endif // EBUG
         while(1){ // guard for dead processes
             pid_t childpid = fork();
             if(childpid){
-                DBG("Created child with PID %d\n", childpid);
+                putlog("Create child with PID %d\n", childpid);
+                DBG("Create child with PID %d\n", childpid);
                 wait(NULL);
+                putlog("Child %d died\n", childpid);
                 WARNX("Child %d died\n", childpid);
                 sleep(1);
             }else{
@@ -88,23 +94,31 @@ int main(int argc, char **argv){
 #endif // DAEMON || CLIENT
 #ifndef CLIENT
     if(!try_connect(G->device, G->speed)){
+        putlog("device not answer");
         WARNX(_("Check power and connection: device not answer!"));
         return 1;
     }
     char *fw = get_firmvare_version();
     if(fw) printf(_("Firmware version: %s\n"), fw);
-    if(G->newspeed && term_setspeed(G->newspeed))
+    if(G->newspeed && term_setspeed(G->newspeed)){
+        putlog("Can't change speed to %d", G->newspeed);
         ERRX(_("Can't change speed to %d"), G->newspeed);
-    if(G->shutter_cmd && shutter_command(G->shutter_cmd))
+    }
+    if(G->shutter_cmd && shutter_command(G->shutter_cmd)){
+        putlog("Can't send shutter command: %s", G->shutter_cmd);
         WARNX(_("Can't send shutter command: %s"), G->shutter_cmd);
-    if(G->heater != HEATER_LEAVE)
+    }
+    if(G->heater != HEATER_LEAVE){
         heater(G->heater); // turn on/off heater
+    }
 #ifndef DAEMON
     if(G->takeimg){
 #endif // DAEMON
         if(G->subframe){
-            if(!(F = define_subframe(G->subframe)))
+            if(!(F = define_subframe(G->subframe))){
+                putlog("Error defining subframe");
                 ERRX(_("Error defining subframe"));
+            }
             G->binning = 0xff; // take subframe
         }
 #endif // !CLIENT
@@ -126,14 +140,18 @@ int main(int argc, char **argv){
             img->binning = G->binning;
 
             if(start_exposition(img, G->imtype)){ // start test exposition even in daemon
+                putlog("Error starting exposition");
                 ERRX(_("Error starting exposition"));
             }else{
                 if(!get_imdata(img)){
+                    putlog("Error image transfer");
                     WARNX(_("Error image transfer"));
                 }else{
 #ifndef DAEMON
-                    if(store_image(img))
+                    if(store_image(img)){
+                        putlog("Error storing image");
                         WARNX(_("Error storing image"));
+                    }
 #endif // !DAEMON
                 }
             }
