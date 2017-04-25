@@ -42,28 +42,32 @@
 /**
  * wait for answer from socket
  * @param sock - socket fd
- * @return 0 in case of error or timeout, 1 in case of socket ready
+ * @return 0 if data is absent, 1 in case of socket ready, -1 if socket closed or error occured
  */
 static int waittoread(int sock){
-    fd_set fds;
+    fd_set fds, efds;
     struct timeval timeout;
     int rc;
     timeout.tv_sec = 1; // wait not more than 1 second
     timeout.tv_usec = 0;
     FD_ZERO(&fds);
+    FD_ZERO(&efds);
     FD_SET(sock, &fds);
+    FD_SET(sock, &efds);
     do{
-        rc = select(sock+1, &fds, NULL, NULL, &timeout);
+        rc = select(sock+1, &fds, NULL, &efds, &timeout);
         if(rc < 0){
             if(errno != EINTR){
+                putlog("Server not available");
                 WARN("select()");
-                return 0;
+                return -1;
             }
             continue;
         }
         break;
     }while(1);
-    if(FD_ISSET(sock, &fds)) return 1;
+    if(FD_ISSET(sock, &fds))  return  1;
+    if(FD_ISSET(sock, &efds)) return -1; // exception - socket closed
     return 0;
 }
 
@@ -229,7 +233,12 @@ void *handle_socket(void *asock){
     char buff[BUFLEN];
     ssize_t _read;
     while(1){
-        if(!waittoread(sock)){ // no data incoming
+        int rd = waittoread(sock);
+        if(rd < 0){
+            putlog("Disconnected");
+            break;
+        }
+        if(!rd){ // no data incoming
             pthread_mutex_lock(&mutex);
             if(imctr != locctr){
                 red("Send image, imctr = %ld, locctr = %ld\n", imctr, locctr);
@@ -289,7 +298,12 @@ void *server(void *asock){
         socklen_t size = sizeof(struct sockaddr_in);
         struct sockaddr_in their_addr;
         int newsock;
-        if(!waittoread(sock)) continue;
+        int rd = waittoread(sock);
+        if(rd < 0){
+            putlog("Socket error");
+            return NULL;
+        }
+        if(!rd) continue;
         red("Got connection\n");
         newsock = accept(sock, (struct sockaddr*)&their_addr, &size);
         if(newsock <= 0){
@@ -398,7 +412,12 @@ static void client_(imstorage *img, int sock){
     size_t Bufsiz = BUFLEN10;
     uint8_t *recvBuff = MALLOC(uint8_t, Bufsiz);
     while(1){
-        if(!waittoread(sock)) continue;
+        int rd = waittoread(sock);
+        if(rd < 0){
+            putlog("Server disconnected");
+            break;
+        }
+        if(!rd) continue;
         size_t offset = 0;
         do{
             if(offset >= Bufsiz){
@@ -418,7 +437,7 @@ static void client_(imstorage *img, int sock){
             if(n < 0){
                 putlog("error in read()");
                 WARN("read");
-                break;
+                return;
             }
             offset += n;
         }while(waittoread(sock));
