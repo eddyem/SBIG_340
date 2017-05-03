@@ -84,8 +84,11 @@ char *make_filename(imstorage *img, const char *suff);
 imstorage *chk_storeimg(imstorage *img, char* store, char *format);
 int store_image(imstorage *filename);
 void print_stat(imstorage *img);
+
 #ifndef CLIENT
 uint16_t *get_imdata(imstorage *img);
+#else
+time_t get_wd_period();
 #endif
 int save_histo(FILE *f, imstorage *img);
 

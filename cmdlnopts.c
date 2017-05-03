@@ -57,9 +57,9 @@ glob_pars const Gdefault = {
     .port = "4444",
     .once = 0,
     .timestamp = 0,
-    .dark_interval = 1800,
-    .min_dark_exp = 30,
-    .max_exptime = -1,
+    .dark_interval = 1800.,
+    .min_dark_exp = 30.,
+    .max_exptime = -1.,
     .htrperiod = 0
 };
 

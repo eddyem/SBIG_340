@@ -351,7 +351,11 @@ void run_terminal(){
 void heater(heater_cmd cmd){
     if(cmd == HEATER_LEAVE) return;
     uint8_t buf[2] = {CMD_HEATER, 0};
-    if(cmd == HEATER_ON) buf[1] = 1;
+    if(cmd == HEATER_ON){
+        putlog("Turn heater ON");
+        buf[1] = 1;
+    }else
+        putlog("Turn heater OFF");
     int i;
     for(i = 0; i < 10 && send_data(buf, 2); ++i);
     trans_status st = TRANS_TIMEOUT;

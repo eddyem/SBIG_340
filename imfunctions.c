@@ -383,6 +383,11 @@ int writefits(imstorage *img){
 #endif // LIBCFITSIO
 #endif // !DAEMON
 
+static double max_exptime = 180.;
+void set_max_exptime(double t){
+    if(t > 30. && t < 300.) max_exptime = t;
+}
+
 #ifndef CLIENT
 /**
  * Receive image data & fill img->imdata
@@ -399,12 +404,15 @@ uint16_t *get_imdata(imstorage *img){
     img->imdata = imdata;
     return imdata;
 }
-#endif // CLIENT
-
-static double max_exptime = 180.;
-void set_max_exptime(double t){
-    if(t > 30. && t < 300.) max_exptime = t;
+#else
+/**
+ * calculate period for watchdog: 2*max_exptime + 3 minutes
+ */
+time_t get_wd_period(){
+    time_t period = 2 * (time_t) max_exptime + 180;
+    return period;
 }
+#endif // !CLIENT
 
 /**
  * save truncated to 256 levels histogram of `img` into file `f`

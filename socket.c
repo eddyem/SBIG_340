@@ -339,9 +339,14 @@ static void daemon_(imstorage *img, int sock){
         }
         if(exp_calculated > 0.) img->exptime = exp_calculated;
         if(img->imtype != IMTYPE_AUTODARK){ // check for darks
-            if(img->imtype == IMTYPE_DARK) img->imtype = IMTYPE_LIGHT; // last was dark
+            if(img->imtype == IMTYPE_DARK){
+                putlog("First light frame after dark");
+                img->imtype = IMTYPE_LIGHT; // last was dark
+            }
             else if(img->exptime > min_dark_exp){ // need to store dark frame?
+                putlog("exptime > %g; dtime()=%.1f, lastDT = %.1f", min_dark_exp, dtime(), lastDT);
                 if(dtime() - lastDT > dark_interval){
+                    putlog("Take dark image");
                     lastDT = dtime();
                     img->imtype = IMTYPE_DARK;
                 }
@@ -411,7 +416,14 @@ static void client_(imstorage *img, int sock){
     if(sock < 0) return;
     size_t Bufsiz = BUFLEN10;
     uint8_t *recvBuff = MALLOC(uint8_t, Bufsiz);
+    time_t wd_time = time(NULL); // watchdog time
+    time_t wd_period = get_wd_period(); // watchdog period: about 3minutes + 2*max_exptime
     while(1){
+        // check watchdog
+        if(time(NULL) - wd_time > wd_period){
+            putlog("Watchdog triggered, exit!");
+            return;
+        }
         int rd = waittoread(sock);
         if(rd < 0){
             putlog("Server disconnected");
@@ -447,6 +459,7 @@ static void client_(imstorage *img, int sock){
             return;
         }
         DBG("read %zd bytes\n", offset);
+        wd_time = time(NULL); // refresh watchdog - socket OK
         if(get_imstorage(img, recvBuff, offset)){
             if(store_image(img)){
                 putlog("Error storing image");

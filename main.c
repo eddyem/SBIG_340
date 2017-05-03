@@ -59,7 +59,7 @@ int main(int argc, char **argv){
     imsubframe *F = NULL;
     #ifndef CLIENT
     if(G->htrperiod) set_heater_period(G->htrperiod);
-    if(G->max_exptime) set_max_exptime(G->max_exptime);
+    if(G->max_exptime > 0) set_max_exptime(G->max_exptime);
     if(G->splist){
         list_speeds();
         return 0;
