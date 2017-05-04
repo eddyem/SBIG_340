@@ -31,6 +31,7 @@ extern "C" {
 
 #include "imfunctions.h"
 int write_debayer(imstorage *img, uint16_t black);
+void modifytimestamp(const char *filename, imstorage *img);
 
 #ifdef __cplusplus
 }

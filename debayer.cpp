@@ -26,9 +26,20 @@
 #include <unistd.h>
 #include <libraw/libraw.h>
 #include <gd.h>
+#include <time.h>
 
 #include "debayer.h"
 #include "usefull_macros.h"
+
+
+void modifytimestamp(const char *filename, imstorage *img){
+    if(!filename) return;
+    struct timespec times[2];
+    memset(times, 0, 2*sizeof(struct timespec));
+    times[0].tv_nsec = UTIME_OMIT;
+    times[1].tv_sec = img->exposetime; // change mtime
+    if(utimensat(AT_FDCWD, filename, times, 0)) WARN(_("Can't change timestamp for %s"), filename);
+}
 
 static int write_jpeg(const char *fname, const uint8_t *data, imstorage *img){
     if(!img) return 1;
@@ -73,6 +84,7 @@ static int write_jpeg(const char *fname, const uint8_t *data, imstorage *img){
     gdImageJpeg(im, fp, 90);
     fclose(fp);
     gdImageDestroy(im);
+    modifytimestamp(fname, img);
     return 0;
 }
 

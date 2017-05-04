@@ -66,8 +66,8 @@ static int waittoread(int sock){
         }
         break;
     }while(1);
-    if(FD_ISSET(sock, &fds))  return  1;
     if(FD_ISSET(sock, &efds)) return -1; // exception - socket closed
+    if(FD_ISSET(sock, &fds))  return  1;
     return 0;
 }
 

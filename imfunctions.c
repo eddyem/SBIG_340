@@ -48,15 +48,6 @@ double exp_calculated = -1.; // optimal exposition, calculated in histogram save
  * exposition start!
  */
 #ifndef DAEMON
-#include <time.h>
-void modifytimestamp(char *filename, imstorage *img){
-    if(!filename) return;
-    struct timespec times[2];
-    memset(times, 0, 2*sizeof(struct timespec));
-    times[0].tv_nsec = UTIME_OMIT;
-    times[1].tv_sec = img->exposetime; // change mtime
-    if(utimensat(AT_FDCWD, filename, times, 0)) WARN(_("Can't change timestamp for %s"), filename);
-}
 
 /**
  * NON THREAD-SAFE!
