@@ -521,10 +521,49 @@ int store_image(imstorage *img){
     }
     #endif
     #ifdef LIBRAW
+    static imstorage *dark = NULL;
+    static double lastdtime = 0.;
     if(img->imtype != IMTYPE_DARK){ // store debayer only if image type isn't dark
         int lowval = glob_avr - 3*glob_std;
         if(glob_min > lowval) lowval = glob_min;
+        if(dark) do{
+            if(dtime() - lastdtime > 3600.){ // not more than 1 hour
+                putlog("Dark too old");
+                FREE(dark->imdata);
+                FREE(dark);
+                break;
+            }
+            if(fabs(dark->exptime/img->exptime - 1.) > 0.05){
+                putlog("Exposures too different, dark: %gs, image: %gs", dark->exptime, img->exptime);
+                break;
+            }
+            if(dark->W != img->W || dark->H != img->H){
+                putlog("Dark and image have different sizes");
+                break;
+            }
+            // all OK, extract dark
+            uint16_t *iptr = img->imdata, *dptr = dark->imdata;
+            size_t s, S = img->W * img->H;
+            for(s = 0; s < S; ++s, ++iptr, ++dptr){
+                uint16_t i = *iptr, d = *dptr;
+                if(i > d) *iptr = i - d;
+                else *iptr = 0;
+            }
+            putlog("Dark extracted");
+            lowval = 0;
+        }while(0);
         if(write_debayer(img, (uint16_t)lowval)) status |= 8; // and save colour image
+    }else{ // save last dark
+        lastdtime = dtime();
+        if(!dark)
+            dark = MALLOC(imstorage, 1);
+        else
+            FREE(dark->imdata);
+        memcpy(dark, img, sizeof(imstorage));
+        size_t S = img->W*img->H;
+        dark->imdata = MALLOC(uint16_t, S);
+        memcpy(dark->imdata, img->imdata, sizeof(uint16_t)*S);
+        putlog("Save last dark image");
     }
     #endif
     putlog("Save image, status=%d", status);
