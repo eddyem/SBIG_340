@@ -525,7 +525,7 @@ int store_image(imstorage *img){
     static double lastdtime = 0.;
     if(img->imtype != IMTYPE_DARK){ // store debayer only if image type isn't dark
         int lowval = glob_avr - 3*glob_std;
-        if(glob_min > lowval) lowval = glob_min;
+        if(glob_min > lowval) lowval = glob_min + glob_std/2;
         if(dark) do{
             if(dtime() - lastdtime > 3600.){ // not more than 1 hour
                 putlog("Dark too old");
@@ -550,7 +550,7 @@ int store_image(imstorage *img){
                 else *iptr = 0;
             }
             putlog("Dark extracted");
-            lowval = 0;
+            lowval = 1+glob_std/2;
         }while(0);
         if(write_debayer(img, (uint16_t)lowval)) status |= 8; // and save colour image
     }else{ // save last dark
