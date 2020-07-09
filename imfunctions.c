@@ -21,12 +21,16 @@
  *
  */
 
-#include "usefull_macros.h"
 #include "imfunctions.h"
 #include "term.h"
-#include <strings.h> // strncasecmp
+#include "usefull_macros.h"
+
+#include <fcntl.h>   // AT_...
+#include <libgen.h>  // basename
 #include <math.h>    // sqrt
-#include <time.h>    // time, gmtime etc
+#include <strings.h> // strncasecmp
+#include <sys/stat.h> // utimensat
+
 #ifndef DAEMON
 #ifdef LIBRAW
 #include "debayer.h"
@@ -38,9 +42,6 @@
 #include <tiffio.h>  // save tiff
 #endif // LIBTIFF
 #endif // !DAEMON
-#include <libgen.h>  // basename
-#include <sys/stat.h> // utimensat
-#include <fcntl.h>   // AT_...
 
 double exp_calculated = -1.; // optimal exposition, calculated in histogram saver
 /**
@@ -245,8 +246,8 @@ void print_stat(imstorage *img){
     printf(_("Image stat:\n"));
     double avr = sum/sz, std = sqrt(fabs(sum2/sz - avr*avr));
     glob_avr = avr, glob_std = std, glob_max = max, glob_min = min;
-    printf("avr = %.1f, std = %.1f, Noverload = %ld\n", avr, std, Noverld);
-    printf("max = %u, min = %u, W*H = %ld\n", max, min, size);
+    printf("avr = %.1f, std = %.1f, Noverload = %zd\n", avr, std, Noverld);
+    printf("max = %u, min = %u, W*H = %zd\n", max, min, size);
     Noverld = 0L;
     ptr = img->imdata; sum = 0.; sum2 = 0.;
     tres = avr + 3. * std; // max treshold == 3sigma
@@ -267,7 +268,7 @@ void print_stat(imstorage *img){
     }
     sz = (double)N;
     avr = sum/sz; std = sqrt(fabs(sum2/sz - avr*avr));
-    printf("At 3sigma: Noverload = %ld, avr = %.3f, std = %.3f\n", Noverld, avr, std);
+    printf("At 3sigma: Noverload = %zd, avr = %.3f, std = %.3f\n", Noverld, avr, std);
 }
 
 #ifndef DAEMON
@@ -525,7 +526,7 @@ int store_image(imstorage *img){
     static double lastdtime = 0.;
     if(img->imtype != IMTYPE_DARK){ // store debayer only if image type isn't dark
         int lowval = glob_avr - 3*glob_std;
-        if(glob_min > lowval) lowval = glob_min + glob_std/2;
+        if(glob_min > lowval) lowval = glob_min + glob_std/3;
         if(dark) do{
             if(dtime() - lastdtime > 3600.){ // not more than 1 hour
                 putlog("Dark too old");
@@ -550,7 +551,7 @@ int store_image(imstorage *img){
                 else *iptr = 0;
             }
             putlog("Dark extracted");
-            lowval = 1+glob_std/2;
+            lowval = 1+glob_std/3;
         }while(0);
         if(write_debayer(img, (uint16_t)lowval)) status |= 8; // and save colour image
     }else{ // save last dark

@@ -23,7 +23,10 @@
 #pragma once
 #ifndef __IMFUNCTIONS_H__
 #define __IMFUNCTIONS_H__
+
 #include <stdint.h>
+#include <stdio.h>
+#include <time.h>    // time, gmtime etc
 
 // how to save files: rewrite, check existance or add number
 typedef enum{

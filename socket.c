@@ -21,17 +21,19 @@
  *
  */
 #if defined CLIENT || defined DAEMON
-#include "usefull_macros.h"
+
 #include "socket.h"
 #include "term.h"
-#include <netdb.h>      // addrinfo
+#include "usefull_macros.h"
+
 #include <arpa/inet.h>  // inet_ntop
-#include <pthread.h>
 #include <limits.h>     // INT_xxx
+#include <netdb.h>      // addrinfo
+#include <pthread.h>
 #include <signal.h>     // pthread_kill
-#include <unistd.h>     // daemon
-#include <sys/wait.h>   // wait
 #include <sys/prctl.h>  //prctl
+#include <sys/wait.h>   // wait
+#include <unistd.h>     // daemon
 
 #define BUFLEN    (10240)
 #define BUFLEN10  (1048576)
@@ -153,10 +155,18 @@ static imstorage *copyima(imstorage *im){
     return storedima;
 }
 
+static int addwebhdr(char *buf, size_t buflen, char *conttype, size_t contlen){
+    return snprintf(buf, buflen,
+        "HTTP/2.0 200 OK\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Access-Control-Allow-Methods: GET, POST\r\n"
+        "Access-Control-Allow-Credentials: true\r\n"
+        "Content-type: %s\r\nContent-Length: %zd\r\n\r\n", conttype, contlen);
+}
+
 int send_ima(int sock, int webquery){
     uint8_t buf[BUFLEN10], *bptr = buf, obuff[BUFLEN];
-    ssize_t Len;
-    size_t rest = BUFLEN10, imS = storedima->W * storedima->H * sizeof(uint16_t);
+    int Len, rest = BUFLEN10, imS = storedima->W * storedima->H * sizeof(uint16_t);
     #define PUT(key, val) do{Len = snprintf((char*)bptr, rest, "%s=%i\n", key, (int)storedima->val); \
                 if(Len > 0){rest -= Len; bptr += Len;}}while(0)
     PUT("binning", binning);
@@ -174,7 +184,7 @@ int send_ima(int sock, int webquery){
     Len = snprintf((char*)bptr, rest, "imdata=");
     if(Len){rest -= Len; bptr += Len;}
     if(rest < imS){
-        red("rest = %zd, need %zd\n", rest, imS);
+        red("rest = %d, need %d\n", rest, imS);
         return 0; // not enough memory - HOW???
     }
     if(!memcpy(bptr, storedima->imdata, imS)){
@@ -183,15 +193,10 @@ int send_ima(int sock, int webquery){
     }
     rest -= imS;
     // send data
-    size_t send = BUFLEN10 - rest;
+    int send = BUFLEN10 - rest;
     // OK buffer ready, prepare to send it
     if(webquery){
-        Len = snprintf((char*)obuff, BUFLEN,
-            "HTTP/2.0 200 OK\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
-            "Access-Control-Allow-Methods: GET, POST\r\n"
-            "Access-Control-Allow-Credentials: true\r\n"
-            "Content-type: multipart/form-data\r\nContent-Length: %zd\r\n\r\n", send);
+        Len = addwebhdr((char*)obuff, BUFLEN, "multipart/form-data", send);
         if(Len < 0){
             WARN("sprintf()");
             return 0;
@@ -202,12 +207,12 @@ int send_ima(int sock, int webquery){
         }
         DBG("%s", obuff);
     }
-    red("send %zd bytes\n", send);
-    if(send != (size_t)write(sock, buf, send)){
+    red("send %d bytes\n", send);
+    if(send != write(sock, buf, send)){
         WARN("write()");
         return 0;
     }
-    putlog("send image to client");
+    putlog("image sent to client");
     return 1;
 }
 
@@ -279,6 +284,11 @@ void *handle_socket(void *asock){
             putlog("got command: heater=%ld", htr);
             if(htr == 0) heater_off();
             else heater_on();
+            int Len = addwebhdr(buff, BUFLEN, "text/html", 12);
+            if(Len > 0){
+                Len += snprintf(buff+Len, BUFLEN, "HEATER %s\r\n", htr ? "ON " : "OFF");
+                write(sock, buff, Len);
+            }
             break; // disconnect after command receiving
         }
     }
@@ -492,7 +502,7 @@ void daemonize(imstorage *img, char *hostname, char *port){
     char str[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(ia->sin_addr), str, INET_ADDRSTRLEN);
     DBG("canonname: %s, port: %u, addr: %s\n", res->ai_canonname, ntohs(ia->sin_port), str);
-    putlog("connect to %s:%s", hostname, port);
+    putlog("connect to port %s", port);
     // loop through all the results and bind to the first we can
     for(p = res; p != NULL; p = p->ai_next){
         if((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1){

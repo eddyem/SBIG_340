@@ -9,7 +9,7 @@ LDFLAGS += -lm -pthread
 LDIMG   :=
 SRCS    := $(wildcard *.c)
 DEFINES := $(DEF) -D_GNU_SOURCE  -D_XOPEN_SOURCE=1111
-DEFINES += -DEBUG
+#DEFINES += -DEBUG
 CFLAGS += -Wall -Wextra -O2
 OBJS := $(SRCS:%.c=%.o)
 CC  = gcc

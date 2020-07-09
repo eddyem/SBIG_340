@@ -53,8 +53,10 @@ int main(int argc, char **argv){
     signal(SIGQUIT, signals); // ctrl+\ - quit
     signal(SIGTSTP, SIG_IGN); // ignore ctrl+Z
     glob_pars *G = parse_args(argc, argv);
-    if(G->rest_pars_num)
-        openlogfile(G->rest_pars[0]);
+#if defined DAEMON || defined CLIENT
+    char *logname = NULL;
+    if(G->rest_pars_num) logname = G->rest_pars[0];
+#endif
     imstorage *img = NULL;
     imsubframe *F = NULL;
     #ifndef CLIENT
@@ -69,23 +71,18 @@ int main(int argc, char **argv){
 #if defined DAEMON || defined CLIENT
     if(!G->once){
         #ifndef EBUG
-        putlog("Daemonize");
         fflush(stdout);
         if(daemon(1, 0)){
-            putlog("Can't daemonize");
             ERR("daemon()");
         }
         #endif // EBUG
         while(1){ // guard for dead processes
             pid_t childpid = fork();
             if(childpid){
-                putlog("Create child with PID %d\n", childpid);
-                DBG("Create child with PID %d\n", childpid);
                 wait(NULL);
-                putlog("Child %d died\n", childpid);
-                WARNX("Child %d died\n", childpid);
                 sleep(1);
             }else{
+                if(logname) openlogfile(logname);
                 prctl(PR_SET_PDEATHSIG, SIGTERM); // send SIGTERM to child when parent dies
                 break; // go out to normal functional
             }

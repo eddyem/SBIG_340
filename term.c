@@ -20,8 +20,9 @@
  */
 #ifndef CLIENT
 
-#include "usefull_macros.h"
 #include "term.h"
+#include "usefull_macros.h"
+
 #include <strings.h> // strncasecmp
 #include <time.h>    // time(NULL)
 
@@ -501,14 +502,17 @@ int start_exposition(imstorage *im, char *imtype){
     if(htr_on_time && time(NULL) - htr_on_time > heater_period){
         set_heater_off = 0;
         set_heater_on = 0;
+        putlog("heater timeout");
         heater(HEATER_OFF);
         htr_on_time = 0;
     }
     if(set_heater_off){
         set_heater_off = 0;
+        set_heater_on = 0;
         heater(HEATER_OFF);
         htr_on_time = 0;
     }else if(set_heater_on){
+        set_heater_off = 0;
         set_heater_on = 0;
         heater(HEATER_ON);
         htr_on_time = time(NULL);
@@ -523,7 +527,7 @@ int start_exposition(imstorage *im, char *imtype){
         WARNX(_("Exposition time should be not less than 50us"));
         return 1;
     }
-    DBG("exp: %lu", exp100us);
+    DBG("exp: %llu", (long long)exp100us);
     cmd[1] = (exp100us >> 16) & 0xff;
     cmd[2] = (exp100us >> 8) & 0xff;
     cmd[3] = exp100us & 0xff;
